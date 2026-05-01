@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 5b9f48cddbab61c2db469ea36e477526
+guid: 612cb9838d610b699acc38816c67c0df
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -1173688184781677309
-    second: big-faking-room_0
+      213: -8348406586926817949
+    second: character-sprite_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -46,7 +46,7 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 1
+  spriteMode: 2
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: big-faking-room_0
+      name: character-sprite_0
       rect:
         serializedVersion: 2
-        x: 31
-        y: 127
-        width: 450
-        height: 370
+        x: 5
+        y: 0
+        width: 25
+        height: 31
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 30dd30d70d836bfe0800000000000000
-      internalID: -1173688184781677309
+      spriteID: 36d12b1e070842c80800000000000000
+      internalID: -8348406586926817949
       vertices: []
       indices: 
       edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      big-faking-room_0: -1173688184781677309
+      character-sprite_0: -8348406586926817949
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
