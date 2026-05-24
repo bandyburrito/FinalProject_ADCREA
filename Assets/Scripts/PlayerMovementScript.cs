@@ -40,7 +40,7 @@ public class PlayerMovementScript : MonoBehaviour
         float moveX = Input.GetAxis("Horizontal");
         float moveY = Input.GetAxis("Vertical");
 
-        Vector2 movement = new Vector2(moveX, moveY).normalized;
+        Vector2 movement = new Vector2(moveX, moveY);
         transform.Translate(movement * moveSpeed * Time.deltaTime);
     }
 }
