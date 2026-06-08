@@ -5,10 +5,14 @@ namespace ADCREA.Algorithms
 {
     /// <summary>
     /// A* shortest-path on a TileGrid. Used by enemy AI to chase the player around walls.
-    /// Manhattan heuristic — admissible on a 4-connected grid, so the path is guaranteed optimal.
+    /// Octile heuristic with √2-weighted diagonals — admissible on an 8-connected grid, so
+    /// the path is guaranteed optimal. (Degrades to Manhattan behaviour when the grid has
+    /// diagonals disabled, since no diagonal steps are ever generated.)
     /// </summary>
     public static class AStarPathfinder
     {
+        private const float Sqrt2 = 1.41421356f;
+
         public struct Result
         {
             public List<Vector2Int> Path;          // Empty if no path was found.
@@ -50,7 +54,9 @@ namespace ADCREA.Algorithms
                 foreach (var neighbour in grid.WalkableNeighbours(current))
                 {
                     grid.TryGetTile(neighbour, out var nTile);
-                    float tentativeG = gScore[current] + nTile.MovementCost;
+                    bool diagonal = neighbour.x != current.x && neighbour.y != current.y;
+                    float stepCost = nTile.MovementCost * (diagonal ? Sqrt2 : 1f);
+                    float tentativeG = gScore[current] + stepCost;
 
                     if (!gScore.TryGetValue(neighbour, out float existingG) || tentativeG < existingG)
                     {
@@ -65,9 +71,14 @@ namespace ADCREA.Algorithms
             return result;
         }
 
+        // Octile distance — admissible on an 8-connected grid with straight=1, diagonal=√2,
+        // as long as the minimum tile MovementCost is >= 1. Manhattan would over-estimate here
+        // and break A*'s optimality guarantee.
         private static float Heuristic(Vector2Int a, Vector2Int b)
         {
-            return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
+            int dx = Mathf.Abs(a.x - b.x);
+            int dy = Mathf.Abs(a.y - b.y);
+            return (dx + dy) + (Sqrt2 - 2f) * Mathf.Min(dx, dy);
         }
 
         private static List<Vector2Int> Reconstruct(Dictionary<Vector2Int, Vector2Int> cameFrom, Vector2Int current)

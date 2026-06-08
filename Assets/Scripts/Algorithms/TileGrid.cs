@@ -38,8 +38,16 @@ namespace ADCREA.Algorithms
             return _tiles.TryGetValue(cell, out var t) && t.Walkable;
         }
 
-        /// <summary>Four-direction neighbours. Diagonal omitted on purpose — clearer for grid combat.</summary>
-        private static readonly Vector2Int[] Directions =
+        /// <summary>Whether diagonal (8-connected) moves are allowed. Set by RoomGrid at build time.</summary>
+        public bool AllowDiagonal = true;
+
+        /// <summary>
+        /// When false, a diagonal move is only legal if both shared orthogonal cells are also
+        /// walkable — stops the path clipping a wall corner or squeezing a 1-tile diagonal gap.
+        /// </summary>
+        public bool AllowCornerCutting = false;
+
+        private static readonly Vector2Int[] Orthogonal =
         {
             new Vector2Int( 1,  0),
             new Vector2Int(-1,  0),
@@ -47,12 +55,37 @@ namespace ADCREA.Algorithms
             new Vector2Int( 0, -1),
         };
 
+        private static readonly Vector2Int[] Diagonal =
+        {
+            new Vector2Int( 1,  1),
+            new Vector2Int( 1, -1),
+            new Vector2Int(-1,  1),
+            new Vector2Int(-1, -1),
+        };
+
         public IEnumerable<Vector2Int> WalkableNeighbours(Vector2Int cell)
         {
-            for (int i = 0; i < Directions.Length; i++)
+            for (int i = 0; i < Orthogonal.Length; i++)
             {
-                var n = cell + Directions[i];
+                var n = cell + Orthogonal[i];
                 if (IsWalkable(n)) yield return n;
+            }
+
+            if (!AllowDiagonal) yield break;
+
+            for (int i = 0; i < Diagonal.Length; i++)
+            {
+                var d = Diagonal[i];
+                if (!IsWalkable(cell + d)) continue;
+
+                // No corner cutting: both orthogonal cells the diagonal shares must be open.
+                if (!AllowCornerCutting &&
+                    (!IsWalkable(cell + new Vector2Int(d.x, 0)) || !IsWalkable(cell + new Vector2Int(0, d.y))))
+                {
+                    continue;
+                }
+
+                yield return cell + d;
             }
         }
 

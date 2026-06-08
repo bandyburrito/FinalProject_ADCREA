@@ -1,29 +1,42 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
+[RequireComponent(typeof(Rigidbody2D))]
 public class PlayerMovementScript : MonoBehaviour
 {
     public float moveSpeed = 5f;
     public SpriteRenderer playerSpriteRenderer;
 
+    private Rigidbody2D _rb;
+    private Vector2 _movement;
 
-    
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    void Awake()
     {
-        
+        _rb = GetComponent<Rigidbody2D>();
+        // Top-down: wall collisions must never spin the player, and interpolation smooths
+        // the visible motion between physics steps.
+        _rb.freezeRotation = true;
+        _rb.interpolation = RigidbodyInterpolation2D.Interpolate;
     }
 
-    // Update is called once per frame
+    // Input is polled per-frame here; movement is applied in FixedUpdate.
     void Update()
     {
-        PlayerMovement();
-        TurnPlayerSprite();
+        float moveX = Input.GetAxis("Horizontal");
+        float moveY = Input.GetAxis("Vertical");
+
+        _movement = Vector2.ClampMagnitude(new Vector2(moveX, moveY), 1f);
+        TurnPlayerSprite(moveX);
     }
 
-    private void TurnPlayerSprite()
+    // Physics-based movement: the collider stops cleanly against walls instead of teleporting
+    // into them (transform.Translate ignored collisions, which caused the clipping/jitter).
+    void FixedUpdate()
     {
-        float horizontalInput = Input.GetAxis("Horizontal");
+        _rb.linearVelocity = _movement * moveSpeed;
+    }
+
+    private void TurnPlayerSprite(float horizontalInput)
+    {
         if (horizontalInput > 0)
         {
             playerSpriteRenderer.flipX = false; // Facing Right
@@ -32,15 +45,5 @@ public class PlayerMovementScript : MonoBehaviour
         {
             playerSpriteRenderer.flipX = true; // Facing Left
         }
-    }
-
-    
-    private void PlayerMovement()
-    {
-        float moveX = Input.GetAxis("Horizontal");
-        float moveY = Input.GetAxis("Vertical");
-
-        Vector2 movement = new Vector2(moveX, moveY);
-        transform.Translate(movement * moveSpeed * Time.deltaTime);
     }
 }

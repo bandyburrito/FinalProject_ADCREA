@@ -27,18 +27,19 @@ namespace ADCREA.Enemies
 
         [Header("Debug")]
         public bool drawPathGizmo = true;
+        public bool logPathfindingFailures = false;
 
-        private GridManager _gm;
+        private RoomGrid _room;
         private List<Vector2Int> _currentPath;
         private int _pathIndex;
         private float _repathTimer;
 
         private void Start()
         {
-            _gm = GridManager.Instance;
-            if (_gm == null)
+            _room = GetComponentInParent<RoomGrid>();
+            if (_room == null)
             {
-                Debug.LogError($"{nameof(MeleeEnemy)} requires a {nameof(GridManager)} in the scene.", this);
+                Debug.LogError($"{nameof(MeleeEnemy)} must be spawned inside a room with a {nameof(RoomGrid)}.", this);
                 enabled = false;
                 return;
             }
@@ -53,6 +54,9 @@ namespace ADCREA.Enemies
         private void Update()
         {
             if (target == null) return;
+
+            // Only the room the player is currently in runs its AI.
+            if (!RoomManager.IsActive(_room)) return;
 
             float distToTarget = Vector2.Distance(transform.position, target.position);
             if (distToTarget <= attackRange)
@@ -74,19 +78,23 @@ namespace ADCREA.Enemies
 
         private void Repath()
         {
-            var startCell = _gm.WorldToCell(transform.position);
-            var goalCell = _gm.WorldToCell(target.position);
+            var startCell = _room.WorldToCell(transform.position);
+            var goalCell = _room.WorldToCell(target.position);
 
             // If we're standing on a wall cell (e.g. just spawned), bail out cleanly rather than crash.
-            if (!_gm.Grid.IsWalkable(startCell) || !_gm.Grid.IsWalkable(goalCell))
+            if (!_room.Grid.IsWalkable(startCell) || !_room.Grid.IsWalkable(goalCell))
             {
+                if (logPathfindingFailures)
+                    Debug.LogWarning($"{name}: no walkable start/goal — start {startCell} walkable={_room.Grid.IsWalkable(startCell)}, goal {goalCell} walkable={_room.Grid.IsWalkable(goalCell)}.", this);
                 _currentPath = null;
                 return;
             }
 
-            var result = AStarPathfinder.FindPath(_gm.Grid, startCell, goalCell);
+            var result = AStarPathfinder.FindPath(_room.Grid, startCell, goalCell);
             if (!result.Found)
             {
+                if (logPathfindingFailures)
+                    Debug.LogWarning($"{name}: A* found no path from {startCell} to {goalCell}.", this);
                 _currentPath = null;
                 return;
             }
@@ -100,7 +108,7 @@ namespace ADCREA.Enemies
         {
             if (_currentPath == null || _pathIndex >= _currentPath.Count) return;
 
-            Vector3 waypoint = _gm.CellToWorld(_currentPath[_pathIndex]);
+            Vector3 waypoint = _room.CellToWorld(_currentPath[_pathIndex]);
             Vector3 toWaypoint = waypoint - transform.position;
             float distance = toWaypoint.magnitude;
 
@@ -117,11 +125,11 @@ namespace ADCREA.Enemies
 
         private void OnDrawGizmosSelected()
         {
-            if (!drawPathGizmo || _currentPath == null || _gm == null) return;
+            if (!drawPathGizmo || _currentPath == null || _room == null) return;
             Gizmos.color = Color.cyan;
             for (int i = _pathIndex; i < _currentPath.Count - 1; i++)
             {
-                Gizmos.DrawLine(_gm.CellToWorld(_currentPath[i]), _gm.CellToWorld(_currentPath[i + 1]));
+                Gizmos.DrawLine(_room.CellToWorld(_currentPath[i]), _room.CellToWorld(_currentPath[i + 1]));
             }
         }
     }
