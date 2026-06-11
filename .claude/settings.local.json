@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk '/^--- !u!1001/,0' \"/home/ammarrexhaj/Documents/UnityProjects/ADCREA_FinalProject/FinalProject_ADCREA/Assets/Scenes/SampleScene.unity\")",
+      "Bash(xargs sed -i 's/FindFirstObjectByType/FindAnyObjectByType/g')",
+      "Read(//tmp/adcrea-compile/**)",
+      "Bash(dotnet build *)",
+      "Bash(fc-list)",
+      "Bash(ls /usr/share/fonts/TTF/ | grep -i \"jetbrains\" | grep -i \"regular\" ; echo \"---\"; mkdir -p \"/home/ammarrexhaj/Documents/UnityProjects/ADCREA_FinalProject/FinalProject_ADCREA/Assets/Resources/Fonts\" \"/home/ammarrexhaj/Documents/UnityProjects/ADCREA_FinalProject/FinalProject_ADCREA/Assets/Resources/Weapons\")",
+      "Bash(cp /usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf \"/home/ammarrexhaj/Documents/UnityProjects/ADCREA_FinalProject/FinalProject_ADCREA/Assets/Resources/Fonts/JetBrainsMono-Regular.ttf\" && ls -la \"/home/ammarrexhaj/Documents/UnityProjects/ADCREA_FinalProject/FinalProject_ADCREA/Assets/Resources/Fonts/\")",
+      "Bash(file /home/ammarrexhaj/Documents/UnityProjects/ADCREA_FinalProject/FinalProject_ADCREA/Assets/Sprites/weapons/*.png)",
+      "Bash(P=/home/ammarrexhaj/Documents/UnityProjects/ADCREA_FinalProject/FinalProject_ADCREA; W=\"$P/Assets/Sprites/weapons\"; R=\"$P/Assets/Resources/Weapons\"; sed -i 's/spritePixelsToUnits: 100/spritePixelsToUnits: 16/; s/filterMode: 1/filterMode: 0/; s/spriteMode: 2/spriteMode: 1/' \"$W\"/*.png.meta && mv \"$W/revolver.png\" \"$R/Revolver.png\" && mv \"$W/revolver.png.meta\" \"$R/Revolver.png.meta\" && mv \"$W/rifle.png\" \"$R/AssaultRifle.png\" && mv \"$W/rifle.png.meta\" \"$R/AssaultRifle.png.meta\" && mv \"$W/shotgun.png\" \"$R/Shotgun.png\" && mv \"$W/shotgun.png.meta\" \"$R/Shotgun.png.meta\" && mv \"$W/sniper.png\" \"$R/Sniper.png\" && mv \"$W/sniper.png.meta\" \"$R/Sniper.png.meta\" && mv \"$W/sword.png\" \"$R/Broadsword.png\" && mv \"$W/sword.png.meta\" \"$R/Broadsword.png.meta\" && rmdir \"$W\" 2>/dev/null; rm -f \"$P/Assets/Sprites/weapons.meta\"; ls \"$R\")",
+      "Bash(grep -rn 'GameState.Victory\\\\|ShowWeapons\\(.*Picked\\)$' /home/ammarrexhaj/Documents/UnityProjects/ADCREA_FinalProject/FinalProject_ADCREA/Assets/Scripts)",
+      "Bash(P=\"/home/ammarrexhaj/Documents/UnityProjects/ADCREA_FinalProject/FinalProject_ADCREA/Assets/Sprites/Run Cycles\"; sed -i 's/spriteMode: 2/spriteMode: 1/' \"$P\"/*/*.png.meta && grep -l \"spriteMode: 1\" \"$P\"/*/*.png.meta | wc -l)"
+    ]
+  }
+}

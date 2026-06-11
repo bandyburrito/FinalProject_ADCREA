@@ -39,7 +39,10 @@ namespace ADCREA.Algorithms
         public TileGrid Grid { get; private set; }
 
         // Bottom-left corner of cell (0,0) in world space.
-        private Vector2 Origin => transform.position;
+        private Vector2 Origin
+        {
+            get { return transform.position; }
+        }
 
         private void Awake()
         {
@@ -78,7 +81,16 @@ namespace ADCREA.Algorithms
                 {
                     var cell = new Vector2Int(x, y);
                     bool isWall = Physics2D.OverlapBox(CellToWorld(cell), probe, 0f, wallMask) != null;
-                    Grid.SetTile(cell, isWall ? TileGrid.TileKind.Wall : TileGrid.TileKind.Floor);
+                    TileGrid.TileKind kind;
+                    if (isWall)
+                    {
+                        kind = TileGrid.TileKind.Wall;
+                    }
+                    else
+                    {
+                        kind = TileGrid.TileKind.Floor;
+                    }
+                    Grid.SetTile(cell, kind);
                 }
             }
         }

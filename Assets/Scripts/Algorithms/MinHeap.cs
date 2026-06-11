@@ -13,7 +13,10 @@ namespace ADCREA.Algorithms
         private readonly List<T> _items = new List<T>();
         private readonly List<float> _priorities = new List<float>();
 
-        public int Count => _items.Count;
+        public int Count
+        {
+            get { return _items.Count; }
+        }
 
         public void Push(T item, float priority)
         {

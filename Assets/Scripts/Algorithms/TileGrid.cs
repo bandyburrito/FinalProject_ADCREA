@@ -18,20 +18,33 @@ namespace ADCREA.Algorithms
             public TileKind Kind;
             public float MovementCost; // Used by Dijkstra / A* for weighted tiles (e.g. mud, hazard).
 
-            public bool Walkable => Kind == TileKind.Floor;
+            public bool Walkable
+            {
+                get { return Kind == TileKind.Floor; }
+            }
         }
 
         private readonly Dictionary<Vector2Int, Tile> _tiles = new Dictionary<Vector2Int, Tile>();
 
-        public IReadOnlyDictionary<Vector2Int, Tile> Tiles => _tiles;
-        public int Count => _tiles.Count;
+        public IReadOnlyDictionary<Vector2Int, Tile> Tiles
+        {
+            get { return _tiles; }
+        }
+
+        public int Count
+        {
+            get { return _tiles.Count; }
+        }
 
         public void SetTile(Vector2Int cell, TileKind kind, float movementCost = 1f)
         {
             _tiles[cell] = new Tile { Cell = cell, Kind = kind, MovementCost = movementCost };
         }
 
-        public bool TryGetTile(Vector2Int cell, out Tile tile) => _tiles.TryGetValue(cell, out tile);
+        public bool TryGetTile(Vector2Int cell, out Tile tile)
+        {
+            return _tiles.TryGetValue(cell, out tile);
+        }
 
         public bool IsWalkable(Vector2Int cell)
         {
@@ -98,7 +111,16 @@ namespace ADCREA.Algorithms
                 for (int y = 0; y < height; y++)
                 {
                     bool isWall = x == 0 || y == 0 || x == width - 1 || y == height - 1;
-                    grid.SetTile(new Vector2Int(x, y), isWall ? TileKind.Wall : TileKind.Floor);
+                    TileKind kind;
+                    if (isWall)
+                    {
+                        kind = TileKind.Wall;
+                    }
+                    else
+                    {
+                        kind = TileKind.Floor;
+                    }
+                    grid.SetTile(new Vector2Int(x, y), kind);
                 }
             }
             return grid;

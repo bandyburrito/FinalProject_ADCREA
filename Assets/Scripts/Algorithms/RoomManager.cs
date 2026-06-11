@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace ADCREA.Algorithms
@@ -16,6 +17,12 @@ namespace ADCREA.Algorithms
 
         public RoomGrid ActiveRoom { get; private set; }
 
+        /// <summary>
+        /// Raised whenever the active room changes. The camera listens to this instead of
+        /// the room change being pushed to it, so travel code stays unaware of who reacts.
+        /// </summary>
+        public event Action<RoomGrid> ActiveRoomChanged;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -31,7 +38,18 @@ namespace ADCREA.Algorithms
             if (Instance == this) Instance = null;
         }
 
-        public void SetActiveRoom(RoomGrid room) => ActiveRoom = room;
+        public void SetActiveRoom(RoomGrid room)
+        {
+            if (ActiveRoom == room)
+            {
+                return;
+            }
+            ActiveRoom = room;
+            if (ActiveRoomChanged != null)
+            {
+                ActiveRoomChanged.Invoke(room);
+            }
+        }
 
         /// <summary>True when the given room should be running its AI this frame.</summary>
         public static bool IsActive(RoomGrid room)

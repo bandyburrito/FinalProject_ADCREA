@@ -55,7 +55,12 @@ namespace ADCREA.Algorithms
                 {
                     grid.TryGetTile(neighbour, out var nTile);
                     bool diagonal = neighbour.x != current.x && neighbour.y != current.y;
-                    float stepCost = nTile.MovementCost * (diagonal ? Sqrt2 : 1f);
+                    float stepScale = 1f;
+                    if (diagonal)
+                    {
+                        stepScale = Sqrt2;
+                    }
+                    float stepCost = nTile.MovementCost * stepScale;
                     float tentativeG = gScore[current] + stepCost;
 
                     if (!gScore.TryGetValue(neighbour, out float existingG) || tentativeG < existingG)

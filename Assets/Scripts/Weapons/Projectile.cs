@@ -1,0 +1,79 @@
+using UnityEngine;
+using ADCREA.Dungeon;
+using ADCREA.Enemies;
+
+namespace ADCREA.Weapons
+{
+    /// <summary>
+    /// Small square bullet. Uses a kinematic Rigidbody2D so trigger contacts fire against
+    /// the static wall and enemy colliders; the first solid thing it touches stops it -
+    /// enemies additionally take the shot's damage (crit multipliers already applied by
+    /// the weapon controller at fire time).
+    /// </summary>
+    public class Projectile : MonoBehaviour
+    {
+        private float _damage;
+        private float _lifeTimer;
+
+        public static Projectile Fire(Vector3 origin, Vector2 direction, float speed,
+            float damage, Color tint, float size)
+        {
+            var bulletObject = new GameObject("Projectile");
+            bulletObject.transform.position = origin;
+            bulletObject.transform.localScale = new Vector3(size, size, 1f);
+
+            Projectile projectile = bulletObject.AddComponent<Projectile>();
+            projectile._damage = damage;
+            // Rooms are walled in, so the wall normally ends a bullet's life; the timer
+            // is a backstop sized to outlive any possible flight across a room.
+            projectile._lifeTimer = 30f / Mathf.Max(speed, 0.1f);
+
+            var renderer = bulletObject.AddComponent<SpriteRenderer>();
+            renderer.sprite = RuntimeSprites.SolidSquare();
+            renderer.color = tint;
+            renderer.sortingOrder = 5;
+
+            var trigger = bulletObject.AddComponent<BoxCollider2D>();
+            trigger.isTrigger = true;
+            trigger.size = new Vector2(0.8f, 0.8f);
+
+            var body = bulletObject.AddComponent<Rigidbody2D>();
+            body.bodyType = RigidbodyType2D.Kinematic;
+            body.useFullKinematicContacts = true;
+            body.linearVelocity = direction * speed;
+
+            return projectile;
+        }
+
+        private void Update()
+        {
+            _lifeTimer -= Time.deltaTime;
+            if (_lifeTimer <= 0f)
+            {
+                Destroy(gameObject);
+            }
+        }
+
+        private void OnTriggerEnter2D(Collider2D other)
+        {
+            // Doors, pickups and altar plates are triggers - bullets fly straight over them.
+            if (other.isTrigger)
+            {
+                return;
+            }
+            if (other.CompareTag("Player"))
+            {
+                return;
+            }
+
+            EnemyHealth enemy = other.GetComponentInParent<EnemyHealth>();
+            if (enemy != null)
+            {
+                enemy.TakeDamage(_damage);
+            }
+
+            // Walls and enemies both stop the shot.
+            Destroy(gameObject);
+        }
+    }
+}

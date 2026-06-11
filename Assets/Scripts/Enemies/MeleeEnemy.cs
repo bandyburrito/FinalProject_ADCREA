@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using ADCREA.Algorithms;
+using ADCREA.Player;
 
 namespace ADCREA.Enemies
 {
@@ -24,6 +25,7 @@ namespace ADCREA.Enemies
         public float repathInterval = 0.25f;   // Seconds between A* recomputes.
         public float attackRange = 1.1f;       // World units. Stops moving + triggers attack inside this distance.
         public int contactDamage = 1;
+        public float attackCooldown = 0.9f;    // Seconds between hits while staying in range.
 
         [Header("Debug")]
         public bool drawPathGizmo = true;
@@ -33,6 +35,8 @@ namespace ADCREA.Enemies
         private List<Vector2Int> _currentPath;
         private int _pathIndex;
         private float _repathTimer;
+        private float _attackTimer;
+        private PlayerHealth _targetHealth;
 
         private void Start()
         {
@@ -61,8 +65,8 @@ namespace ADCREA.Enemies
             float distToTarget = Vector2.Distance(transform.position, target.position);
             if (distToTarget <= attackRange)
             {
-                // In range — combat hook goes here once damage system exists. For now just halt.
                 _currentPath = null;
+                TryAttack();
                 return;
             }
 
@@ -101,7 +105,40 @@ namespace ADCREA.Enemies
 
             _currentPath = result.Path;
             // Skip the first node — it's the cell we're already in, so heading to it does nothing useful.
-            _pathIndex = _currentPath.Count > 1 ? 1 : 0;
+            if (_currentPath.Count > 1)
+            {
+                _pathIndex = 1;
+            }
+            else
+            {
+                _pathIndex = 0;
+            }
+        }
+
+        private void TryAttack()
+        {
+            _attackTimer -= Time.deltaTime;
+            if (_attackTimer > 0f)
+            {
+                return;
+            }
+
+            // Looked up lazily because the health component may be added to the player
+            // after this enemy's Start has already cached its target.
+            if (_targetHealth == null)
+            {
+                _targetHealth = target.GetComponent<PlayerHealth>();
+                if (_targetHealth == null)
+                {
+                    return;
+                }
+            }
+
+            bool landed = _targetHealth.TakeDamage(contactDamage);
+            if (landed)
+            {
+                _attackTimer = attackCooldown;
+            }
         }
 
         private void FollowPath()
