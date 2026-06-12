@@ -38,9 +38,11 @@ namespace ADCREA.UI
             Upgrades,
         }
 
-        private const float CardWidth = 280f;
-        private const float CardHeight = 400f;
-        private const float CardGap = 36f;
+        // Sized so three cards dominate the screen the way Spire's rewards do, with
+        // air between them; still fits three across a 1280-wide window.
+        private const float CardWidth = 340f;
+        private const float CardHeight = 470f;
+        private const float CardGap = 56f;
 
         private Mode _mode = Mode.None;
         private string _title = "";
@@ -160,7 +162,7 @@ namespace ADCREA.UI
 
             bool clicked = GUI.Button(rect, "", _cardButtonStyle);
 
-            var nameBar = new Rect(rect.x, rect.y, rect.width, 46f);
+            var nameBar = new Rect(rect.x, rect.y, rect.width, 54f);
             GUI.DrawTexture(nameBar, UiTheme.Solid(UiTheme.NameBar));
             GUI.Label(nameBar, name, _cardNameStyle);
 
@@ -172,12 +174,12 @@ namespace ADCREA.UI
             bool clicked = DrawCardShell(rect, weapon.DisplayName);
 
             // Framed art window, like the picture box on a Spire card.
-            var frame = new Rect(rect.x + 22f, rect.y + 60f, rect.width - 44f, 104f);
+            var frame = new Rect(rect.x + 26f, rect.y + 70f, rect.width - 52f, 150f);
             UiTheme.DrawPanel(frame, UiTheme.InnerFrame, UiTheme.PanelBorder, 2f);
-            var previewRect = new Rect(frame.x + 8f, frame.y + 8f, frame.width - 16f, frame.height - 16f);
+            var previewRect = new Rect(frame.x + 10f, frame.y + 10f, frame.width - 20f, frame.height - 20f);
             DrawSpritePreview(previewRect, weapon);
 
-            var statsRect = new Rect(rect.x + 18f, rect.y + 176f, rect.width - 36f, rect.height - 192f);
+            var statsRect = new Rect(rect.x + 22f, rect.y + 236f, rect.width - 44f, rect.height - 252f);
             GUI.Label(statsRect, BuildStatBlock(weapon), _cardTextStyle);
 
             if (clicked)
@@ -190,16 +192,16 @@ namespace ADCREA.UI
         {
             bool clicked = DrawCardShell(rect, option.Name);
 
-            var frame = new Rect(rect.x + 22f, rect.y + 60f, rect.width - 44f, 104f);
+            var frame = new Rect(rect.x + 26f, rect.y + 70f, rect.width - 52f, 150f);
             UiTheme.DrawPanel(frame, UiTheme.InnerFrame, UiTheme.PanelBorder, 2f);
 
-            var iconRect = new Rect(frame.x + frame.width * 0.5f - 26f, frame.y + frame.height * 0.5f - 26f, 52f, 52f);
+            var iconRect = new Rect(frame.x + frame.width * 0.5f - 32f, frame.y + frame.height * 0.5f - 32f, 64f, 64f);
             Color previous = GUI.color;
             GUI.color = option.Tint;
             GUI.DrawTexture(iconRect, Texture2D.whiteTexture);
             GUI.color = previous;
 
-            var textRect = new Rect(rect.x + 18f, rect.y + 186f, rect.width - 36f, rect.height - 206f);
+            var textRect = new Rect(rect.x + 22f, rect.y + 246f, rect.width - 44f, rect.height - 266f);
             GUI.Label(textRect, option.Description, _cardTextStyle);
 
             if (clicked)
@@ -361,14 +363,14 @@ namespace ADCREA.UI
 
             _cardNameStyle = new GUIStyle(GUI.skin.label);
             _cardNameStyle.font = font;
-            _cardNameStyle.fontSize = 20;
+            _cardNameStyle.fontSize = 24;
             _cardNameStyle.fontStyle = FontStyle.Bold;
             _cardNameStyle.alignment = TextAnchor.MiddleCenter;
             _cardNameStyle.normal.textColor = Color.white;
 
             _cardTextStyle = new GUIStyle(GUI.skin.label);
             _cardTextStyle.font = font;
-            _cardTextStyle.fontSize = 13;
+            _cardTextStyle.fontSize = 16;
             _cardTextStyle.wordWrap = true;
             _cardTextStyle.alignment = TextAnchor.UpperLeft;
             _cardTextStyle.normal.textColor = UiTheme.TextBody;

@@ -77,5 +77,27 @@ namespace ADCREA.Weapons
             Debug.Log(Definition.DisplayName + " crit chance raised to "
                 + Mathf.RoundToInt(EffectiveCritChance() * 100f) + "%");
         }
+
+        public void ApplyAttackSpeedPercentUpgrade(float percent)
+        {
+            AttackSpeedMultiplier = AttackSpeedMultiplier * (1f + percent / 100f);
+        }
+
+        /// <summary>Negative percentages shorten the reload - the useful direction.</summary>
+        public void ApplyReloadTimePercentUpgrade(float percent)
+        {
+            ReloadTimeMultiplier = ReloadTimeMultiplier * (1f + percent / 100f);
+        }
+
+        public void ApplyShotSpeedPercentUpgrade(float percent)
+        {
+            ProjectileVelocityMultiplier = ProjectileVelocityMultiplier * (1f + percent / 100f);
+        }
+
+        /// <summary>Negative percentages tighten the spread - the useful direction.</summary>
+        public void ApplyInaccuracyPercentUpgrade(float percent)
+        {
+            InaccuracyMultiplier = InaccuracyMultiplier * (1f + percent / 100f);
+        }
     }
 }

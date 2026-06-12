@@ -60,6 +60,9 @@ namespace ADCREA.Dungeon
         public float enemyMoveSpeed = 4.2f;
         [Tooltip("Base move speed for the boss - slow but relentless.")]
         public float bossMoveSpeed = 2.8f;
+        [Range(0f, 1f)]
+        [Tooltip("Chance for a room enemy to be a blue ranged gunner instead of a melee chaser.")]
+        public float rangedEnemyChance = 0.4f;
 
         [Header("Endless floor scaling")]
         [Tooltip("Extra enemy health per floor beyond the first, as a fraction (0.3 = +30%/floor).")]
@@ -633,7 +636,7 @@ namespace ADCREA.Dungeon
                         SpawnRoomEnemies(room);
                         break;
                     case RoomType.Boss:
-                        SpawnBoss(room);
+                        SpawnBosses(room);
                         break;
                     case RoomType.Treasure:
                         TreasurePedestal.Create(room.transform, room.WorldCenter());
@@ -713,7 +716,10 @@ namespace ADCREA.Dungeon
 
             for (int i = 0; i < chosen.Count; i++)
             {
-                SpawnEnemyAt(room, chosen[i], false);
+                // Mixing chasers and gunners in one room forces the player to both
+                // dodge bullets and manage distance - pure melee rooms played flat.
+                bool ranged = _rng.NextDouble() < rangedEnemyChance;
+                SpawnGrunt(room, chosen[i], ranged);
             }
         }
 
@@ -773,92 +779,340 @@ namespace ADCREA.Dungeon
             return false;
         }
 
-        private void SpawnBoss(DungeonRoom room)
+        // ---------------------------------------------------------------- enemy builds
+
+        private int CurrentFloor()
+        {
+            if (GameSession.Instance != null)
+            {
+                return GameSession.Instance.FloorNumber;
+            }
+            return 1;
+        }
+
+        // Endless mode: deeper floors grow tougher and faster, so a run always ends
+        // eventually - the death screen reports how deep the player got.
+        private float FloorHealthScale()
+        {
+            return 1f + healthScalePerFloor * (CurrentFloor() - 1);
+        }
+
+        private float FloorSpeedScale()
+        {
+            return Mathf.Min(1f + speedScalePerFloor * (CurrentFloor() - 1), maxSpeedScale);
+        }
+
+        /// <summary>
+        /// Clones the template and guarantees the parts every enemy needs: a solid
+        /// collider (player attacks find enemies through physics queries) and a health
+        /// component. The melee brain from the template stays on; ranged builds swap it.
+        /// </summary>
+        private MeleeEnemy CreateEnemyShell(DungeonRoom room, Vector3 worldPosition)
+        {
+            MeleeEnemy enemy = Instantiate(enemyTemplate, worldPosition, Quaternion.identity, room.transform);
+
+            if (enemy.GetComponent<Collider2D>() == null)
+            {
+                BoxCollider2D body = enemy.gameObject.AddComponent<BoxCollider2D>();
+                body.size = new Vector2(1.1f, 1.1f);
+            }
+            if (enemy.GetComponent<EnemyHealth>() == null)
+            {
+                enemy.gameObject.AddComponent<EnemyHealth>();
+            }
+            return enemy;
+        }
+
+        // The room counts its living enemies to drive the door locks; the enemy reports
+        // its own death back through this link.
+        private void FinalizeEnemy(DungeonRoom room, GameObject enemyObject)
+        {
+            EnemyHealth health = enemyObject.GetComponent<EnemyHealth>();
+            health.Initialize(room);
+            room.RegisterEnemy(health);
+
+            if (!enemyObject.activeSelf)
+            {
+                enemyObject.SetActive(true);
+            }
+        }
+
+        private void TintEnemy(GameObject enemyObject, Color color)
+        {
+            SpriteRenderer sprite = enemyObject.GetComponentInChildren<SpriteRenderer>();
+            if (sprite != null)
+            {
+                sprite.color = color;
+            }
+        }
+
+        private void SpawnGrunt(DungeonRoom room, Vector2Int cell, bool ranged)
+        {
+            MeleeEnemy shell = CreateEnemyShell(room, room.Grid.CellToWorld(cell));
+
+            EnemyHealth health = shell.GetComponent<EnemyHealth>();
+            // 3 to 5 HP base: the weakest gun needs a few hits, the sniper still
+            // one-shots the weakest enemies but not the toughest.
+            health.SetMaxHealth(_rng.Next(3, 6) * FloorHealthScale());
+
+            if (ranged)
+            {
+                shell.gameObject.name = "Ranged Enemy " + cell.x + "," + cell.y;
+                // The melee chase brain makes way for the gunner brain; health,
+                // collider and sprite on the clone are shared by both builds.
+                Destroy(shell);
+                RangedEnemy gunner = shell.gameObject.AddComponent<RangedEnemy>();
+                gunner.moveSpeed = enemyMoveSpeed * 0.85f * FloorSpeedScale();
+                TintEnemy(shell.gameObject, new Color(0.45f, 0.6f, 0.95f));
+            }
+            else
+            {
+                shell.gameObject.name = "Enemy " + cell.x + "," + cell.y;
+                shell.moveSpeed = enemyMoveSpeed * FloorSpeedScale();
+            }
+
+            FinalizeEnemy(room, shell.gameObject);
+        }
+
+        private enum BossArchetype
+        {
+            Bruiser,   // Melee chaser that keeps summoning minions.
+            Spitter,   // Ranged, fires three-bullet fans from a distance.
+            Slime,     // Melee chaser that bursts into ten slimelets on death.
+            Snail,     // Races along diagonals forever, bouncing off walls.
+        }
+
+        private void SpawnBosses(DungeonRoom room)
         {
             if (enemyTemplate == null)
             {
                 return;
             }
 
-            Vector2Int cell = room.Grid.WorldToCell(room.WorldCenter());
-            if (!room.Grid.Grid.IsWalkable(cell))
+            Vector2Int centerCell = room.Grid.WorldToCell(room.WorldCenter());
+
+            if (CurrentFloor() <= 1)
             {
-                List<Vector2Int> walkable = CollectWalkableCells(room.Grid.Grid);
-                ShuffleCells(walkable);
-                if (walkable.Count == 0)
+                // Floor one draws a single random boss; the Spitter is excluded so the
+                // first fight never demands bullet-dodging with the starter weapon.
+                var openers = new List<BossArchetype>
                 {
-                    return;
-                }
-                cell = walkable[0];
-            }
-            SpawnEnemyAt(room, cell, true);
-        }
-
-        private void SpawnEnemyAt(DungeonRoom room, Vector2Int cell, bool isBoss)
-        {
-            MeleeEnemy enemy = Instantiate(enemyTemplate, room.Grid.CellToWorld(cell), Quaternion.identity, room.transform);
-
-            // Player attacks find enemies through physics queries, so every enemy needs a
-            // solid collider - melee swings and projectiles would pass through it otherwise.
-            if (enemy.GetComponent<Collider2D>() == null)
-            {
-                BoxCollider2D body = enemy.gameObject.AddComponent<BoxCollider2D>();
-                body.size = new Vector2(1.1f, 1.1f);
-            }
-
-            EnemyHealth health = enemy.GetComponent<EnemyHealth>();
-            if (health == null)
-            {
-                health = enemy.gameObject.AddComponent<EnemyHealth>();
-            }
-
-            // Endless mode: deeper floors grow tougher and faster, so a run always
-            // ends eventually - the death screen reports how deep the player got.
-            int floor = 1;
-            if (GameSession.Instance != null)
-            {
-                floor = GameSession.Instance.FloorNumber;
-            }
-            float healthScale = 1f + healthScalePerFloor * (floor - 1);
-            float speedScale = Mathf.Min(1f + speedScalePerFloor * (floor - 1), maxSpeedScale);
-
-            if (isBoss)
-            {
-                enemy.gameObject.name = "Floor Boss";
-                enemy.transform.localScale = enemy.transform.localScale * 1.8f;
-                // Slower but harder-hitting than the rank and file: readable as "the
-                // boss" even though it reuses the same A* chase brain.
-                enemy.moveSpeed = bossMoveSpeed * speedScale;
-                enemy.contactDamage = 2;
-                enemy.attackRange = 1.6f;
-                // Sized against the arsenal's 5-10 damage per second, so the boss
-                // survives a few seconds of sustained fire instead of one volley.
-                health.SetMaxHealth(35f * healthScale);
-
-                SpriteRenderer sprite = enemy.GetComponentInChildren<SpriteRenderer>();
-                if (sprite != null)
-                {
-                    sprite.color = new Color(0.95f, 0.3f, 0.3f);
-                }
+                    BossArchetype.Bruiser,
+                    BossArchetype.Slime,
+                    BossArchetype.Snail,
+                };
+                SpawnBossOfType(openers[_rng.Next(openers.Count)], room,
+                    FindWalkableNear(room, centerCell), 1f);
             }
             else
             {
-                enemy.gameObject.name = "Enemy " + cell.x + "," + cell.y;
-                enemy.moveSpeed = enemyMoveSpeed * speedScale;
-                // 3 to 5 HP base: the weakest gun needs a few hits, the sniper still
-                // one-shots the weakest enemies but not the toughest.
-                health.SetMaxHealth(_rng.Next(3, 6) * healthScale);
+                // Twin bosses from floor 2, Isaac double-fight style: two distinct
+                // archetypes at 75% of the solo health pool each - harder than one
+                // boss, fairer than two full ones.
+                var roster = new List<BossArchetype>
+                {
+                    BossArchetype.Bruiser,
+                    BossArchetype.Spitter,
+                    BossArchetype.Slime,
+                    BossArchetype.Snail,
+                };
+                for (int i = roster.Count - 1; i > 0; i--)
+                {
+                    int j = _rng.Next(i + 1);
+                    BossArchetype swap = roster[i];
+                    roster[i] = roster[j];
+                    roster[j] = swap;
+                }
+
+                SpawnBossOfType(roster[0], room, FindWalkableNear(room, centerCell + new Vector2Int(-3, 0)), 0.75f);
+                SpawnBossOfType(roster[1], room, FindWalkableNear(room, centerCell + new Vector2Int(3, 0)), 0.75f);
             }
+        }
 
-            // The room counts its living enemies to drive the door locks; the enemy
-            // reports its own death back through this link.
-            health.Initialize(room);
-            room.RegisterEnemy(health);
-
-            if (!enemy.gameObject.activeSelf)
+        private void SpawnBossOfType(BossArchetype archetype, DungeonRoom room, Vector2Int cell, float healthFactor)
+        {
+            switch (archetype)
             {
-                enemy.gameObject.SetActive(true);
+                case BossArchetype.Spitter:
+                    SpawnRangedBoss(room, cell, healthFactor);
+                    break;
+                case BossArchetype.Slime:
+                    SpawnSlimeBoss(room, cell, healthFactor);
+                    break;
+                case BossArchetype.Snail:
+                    SpawnSnailBoss(room, cell, healthFactor);
+                    break;
+                default:
+                    SpawnMeleeBoss(room, cell, healthFactor);
+                    break;
             }
+        }
+
+        private Vector2Int FindWalkableNear(DungeonRoom room, Vector2Int preferred)
+        {
+            if (room.Grid.Grid.IsWalkable(preferred))
+            {
+                return preferred;
+            }
+            List<Vector2Int> walkable = CollectWalkableCells(room.Grid.Grid);
+            ShuffleCells(walkable);
+            if (walkable.Count > 0)
+            {
+                return walkable[0];
+            }
+            return preferred;
+        }
+
+        private void SpawnMeleeBoss(DungeonRoom room, Vector2Int cell, float healthFactor)
+        {
+            MeleeEnemy shell = CreateEnemyShell(room, room.Grid.CellToWorld(cell));
+            shell.gameObject.name = "Floor Boss (Bruiser)";
+            shell.transform.localScale = shell.transform.localScale * 1.8f;
+            // Slower but harder-hitting than the rank and file: readable as "the boss"
+            // even though it reuses the same A* chase brain.
+            shell.moveSpeed = bossMoveSpeed * FloorSpeedScale();
+            shell.contactDamage = 2;
+            shell.attackRange = 1.6f;
+
+            EnemyHealth health = shell.GetComponent<EnemyHealth>();
+            // Sized against the arsenal's 5-10 damage per second, so a boss survives
+            // a few seconds of sustained fire instead of one volley.
+            health.SetMaxHealth(35f * FloorHealthScale() * healthFactor);
+            TintEnemy(shell.gameObject, new Color(0.95f, 0.3f, 0.3f));
+
+            // The bruiser's gimmick: it keeps calling small minions into the fight.
+            BossMinionSpawner spawner = shell.gameObject.AddComponent<BossMinionSpawner>();
+            spawner.Initialize(this, room);
+
+            AttachBossTag(shell.gameObject, room, health);
+            FinalizeEnemy(room, shell.gameObject);
+        }
+
+        private void SpawnRangedBoss(DungeonRoom room, Vector2Int cell, float healthFactor)
+        {
+            MeleeEnemy shell = CreateEnemyShell(room, room.Grid.CellToWorld(cell));
+            shell.gameObject.name = "Floor Boss (Spitter)";
+            shell.transform.localScale = shell.transform.localScale * 1.8f;
+
+            // Component swap as in SpawnGrunt: the spitter keeps its distance and
+            // fires three-bullet fans instead of chasing into melee.
+            Destroy(shell);
+            RangedEnemy gunner = shell.gameObject.AddComponent<RangedEnemy>();
+            gunner.moveSpeed = 2.3f * FloorSpeedScale();
+            gunner.preferredRange = 7.5f;
+            gunner.fireCooldown = 1.5f;
+            gunner.projectileSpeed = 7.5f;
+            gunner.volleySize = 3;
+
+            EnemyHealth health = shell.gameObject.GetComponent<EnemyHealth>();
+            health.SetMaxHealth(35f * FloorHealthScale() * healthFactor);
+            TintEnemy(shell.gameObject, new Color(0.4f, 0.5f, 0.95f));
+
+            AttachBossTag(shell.gameObject, room, health);
+            FinalizeEnemy(room, shell.gameObject);
+        }
+
+        private void SpawnSlimeBoss(DungeonRoom room, Vector2Int cell, float healthFactor)
+        {
+            MeleeEnemy shell = CreateEnemyShell(room, room.Grid.CellToWorld(cell));
+            shell.gameObject.name = "Floor Boss (Slime)";
+            shell.transform.localScale = shell.transform.localScale * 1.7f;
+            shell.moveSpeed = bossMoveSpeed * 1.15f * FloorSpeedScale();
+            shell.contactDamage = 1;
+            shell.attackRange = 1.5f;
+
+            EnemyHealth health = shell.GetComponent<EnemyHealth>();
+            // A lighter pool than the bruiser: killing it starts phase two, the
+            // ten-slimelet burst, so the fight is paid for in waves rather than HP.
+            health.SetMaxHealth(28f * FloorHealthScale() * healthFactor);
+            TintEnemy(shell.gameObject, new Color(0.35f, 0.85f, 0.4f));
+
+            SplitOnDeath split = shell.gameObject.AddComponent<SplitOnDeath>();
+            split.splitCount = 10;
+            split.Initialize(this, room);
+
+            AttachBossTag(shell.gameObject, room, health);
+            FinalizeEnemy(room, shell.gameObject);
+        }
+
+        private void SpawnSnailBoss(DungeonRoom room, Vector2Int cell, float healthFactor)
+        {
+            MeleeEnemy shell = CreateEnemyShell(room, room.Grid.CellToWorld(cell));
+            shell.gameObject.name = "Floor Boss (Snail)";
+            shell.transform.localScale = shell.transform.localScale * 1.5f;
+
+            // Component swap as in SpawnGrunt: the snail neither chases nor aims, it
+            // just ricochets along diagonals at speed and punishes bad positioning.
+            Destroy(shell);
+            DiagonalBouncer bouncer = shell.gameObject.AddComponent<DiagonalBouncer>();
+            bouncer.speed = 6f * FloorSpeedScale();
+            bouncer.contactDamage = 1;
+
+            EnemyHealth health = shell.gameObject.GetComponent<EnemyHealth>();
+            health.SetMaxHealth(30f * FloorHealthScale() * healthFactor);
+            TintEnemy(shell.gameObject, new Color(0.8f, 0.55f, 0.9f));
+
+            AttachBossTag(shell.gameObject, room, health);
+            FinalizeEnemy(room, shell.gameObject);
+        }
+
+        /// <summary>
+        /// Called by SplitOnDeath when the slime boss dies. Slimelets are tiny, fast
+        /// and fragile - a cleanup wave, not ten extra bosses.
+        /// </summary>
+        public EnemyHealth SpawnSlimelet(DungeonRoom room, Vector3 worldPosition)
+        {
+            if (enemyTemplate == null || room == null)
+            {
+                return null;
+            }
+
+            MeleeEnemy shell = CreateEnemyShell(room, worldPosition);
+            shell.gameObject.name = "Slimelet";
+            shell.transform.localScale = shell.transform.localScale * 0.55f;
+            shell.moveSpeed = enemyMoveSpeed * 1.15f * FloorSpeedScale();
+            shell.contactDamage = 1;
+            shell.attackRange = 0.9f;
+
+            EnemyHealth health = shell.GetComponent<EnemyHealth>();
+            health.SetMaxHealth(1f);
+            TintEnemy(shell.gameObject, new Color(0.45f, 0.9f, 0.5f));
+
+            FinalizeEnemy(room, shell.gameObject);
+            return health;
+        }
+
+        private void AttachBossTag(GameObject bossObject, DungeonRoom room, EnemyHealth health)
+        {
+            BossTag tag = bossObject.AddComponent<BossTag>();
+            tag.Health = health;
+            tag.Room = room;
+            tag.Icon = bossObject.GetComponentInChildren<SpriteRenderer>();
+        }
+
+        /// <summary>
+        /// Called by BossMinionSpawner mid-fight. Minions are deliberately weak and
+        /// quick: they add pressure, not bullet-sponge padding.
+        /// </summary>
+        public EnemyHealth SpawnBossMinion(DungeonRoom room, Vector3 worldPosition)
+        {
+            if (enemyTemplate == null || room == null)
+            {
+                return null;
+            }
+
+            MeleeEnemy shell = CreateEnemyShell(room, worldPosition);
+            shell.gameObject.name = "Boss Minion";
+            shell.transform.localScale = shell.transform.localScale * 0.75f;
+            shell.moveSpeed = enemyMoveSpeed * 1.1f * FloorSpeedScale();
+            shell.contactDamage = 1;
+
+            EnemyHealth health = shell.GetComponent<EnemyHealth>();
+            health.SetMaxHealth(2f * FloorHealthScale());
+            TintEnemy(shell.gameObject, new Color(0.95f, 0.55f, 0.3f));
+
+            FinalizeEnemy(room, shell.gameObject);
+            return health;
         }
 
         private void PlacePlayerAtStart()

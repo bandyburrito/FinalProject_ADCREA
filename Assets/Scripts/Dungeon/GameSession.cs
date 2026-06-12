@@ -220,7 +220,7 @@ namespace ADCREA.Dungeon
 
             _pendingPedestal = pedestal;
             Time.timeScale = 0f;
-            EnsureChoiceScreen().ShowUpgrades(UpgradeOption.TreasureOffer(),
+            EnsureChoiceScreen().ShowUpgrades(UpgradeOption.TreasureOffer(_choiceRng),
                 "Choose an Upgrade", OnTreasureUpgradePicked);
             return true;
         }
@@ -251,6 +251,8 @@ namespace ADCREA.Dungeon
                 popupPosition = health.transform.position;
             }
 
+            WeaponInstance weapon = EquippedWeapon();
+
             switch (kind)
             {
                 case UpgradeKind.HealOneHeart:
@@ -261,27 +263,83 @@ namespace ADCREA.Dungeon
                     }
                     break;
 
-                case UpgradeKind.DamagePlus25Percent:
-                    WeaponInstance damaged = EquippedWeapon();
-                    if (damaged != null)
+                case UpgradeKind.MaxHealthPlusOne:
+                    if (health != null)
                     {
-                        damaged.ApplyDamagePercentUpgrade(25f);
+                        health.IncreaseMaxHealth(1);
+                        FloatingText.Spawn(popupPosition, "+1 MAX HP", new Color(0.85f, 0.4f, 0.45f));
+                    }
+                    break;
+
+                case UpgradeKind.BloodPactHeal:
+                    if (health != null)
+                    {
+                        // The altar's joke deal: it already collected 1 HP, so this
+                        // nets the player +1 - the house loses for once.
+                        health.Heal(2);
+                        FloatingText.Spawn(popupPosition, "BLOOD PACT +2 HP", new Color(0.85f, 0.2f, 0.25f));
+                    }
+                    break;
+
+                case UpgradeKind.DamagePlus25Percent:
+                    if (weapon != null)
+                    {
+                        weapon.ApplyDamagePercentUpgrade(25f);
                         FloatingText.Spawn(popupPosition,
-                            "+25% DMG  " + damaged.Definition.DisplayName
-                            + " (now " + damaged.EffectiveDamage().ToString("0.##") + ")",
+                            "+25% DMG  " + weapon.Definition.DisplayName
+                            + " (now " + weapon.EffectiveDamage().ToString("0.##") + ")",
                             new Color(0.95f, 0.6f, 0.25f));
                     }
                     break;
 
                 case UpgradeKind.CritPlus20Percent:
-                    WeaponInstance lucky = EquippedWeapon();
-                    if (lucky != null)
+                    if (weapon != null)
                     {
-                        lucky.ApplyCritChanceUpgrade(0.20f);
+                        weapon.ApplyCritChanceUpgrade(0.20f);
                         FloatingText.Spawn(popupPosition,
-                            "+20% CRIT  " + lucky.Definition.DisplayName
-                            + " (now " + Mathf.RoundToInt(lucky.EffectiveCritChance() * 100f) + "%)",
+                            "+20% CRIT  " + weapon.Definition.DisplayName
+                            + " (now " + Mathf.RoundToInt(weapon.EffectiveCritChance() * 100f) + "%)",
                             new Color(0.45f, 0.85f, 0.4f));
+                    }
+                    break;
+
+                case UpgradeKind.AttackSpeedPlus20Percent:
+                    if (weapon != null)
+                    {
+                        weapon.ApplyAttackSpeedPercentUpgrade(20f);
+                        FloatingText.Spawn(popupPosition,
+                            "+20% ATK SPEED  " + weapon.Definition.DisplayName,
+                            new Color(0.95f, 0.85f, 0.4f));
+                    }
+                    break;
+
+                case UpgradeKind.ReloadTimeMinus20Percent:
+                    if (weapon != null)
+                    {
+                        weapon.ApplyReloadTimePercentUpgrade(-20f);
+                        FloatingText.Spawn(popupPosition,
+                            "-20% RELOAD  " + weapon.Definition.DisplayName,
+                            new Color(0.5f, 0.7f, 0.9f));
+                    }
+                    break;
+
+                case UpgradeKind.ShotSpeedPlus30Percent:
+                    if (weapon != null)
+                    {
+                        weapon.ApplyShotSpeedPercentUpgrade(30f);
+                        FloatingText.Spawn(popupPosition,
+                            "+30% SHOT SPEED  " + weapon.Definition.DisplayName,
+                            new Color(0.7f, 0.7f, 0.75f));
+                    }
+                    break;
+
+                case UpgradeKind.SteadyAimPlus30Percent:
+                    if (weapon != null)
+                    {
+                        weapon.ApplyInaccuracyPercentUpgrade(-30f);
+                        FloatingText.Spawn(popupPosition,
+                            "-30% SPREAD  " + weapon.Definition.DisplayName,
+                            new Color(0.6f, 0.85f, 0.9f));
                     }
                     break;
             }
@@ -393,7 +451,6 @@ namespace ADCREA.Dungeon
                     {
                         QuitGame();
                     }
-                    DrawControlsHint();
                     break;
 
                 case GameState.GameOver:
@@ -496,22 +553,6 @@ namespace ADCREA.Dungeon
             return GUI.Button(rect, label, _buttonStyle);
         }
 
-        // The in-game HUD carries no control hints anymore, so the menu is the one
-        // place a presenter (or professor) can read the bindings.
-        private void DrawControlsHint()
-        {
-            if (_hintStyle == null)
-            {
-                _hintStyle = new GUIStyle(_subtitleStyle);
-                _hintStyle.fontSize = 13;
-                _hintStyle.alignment = TextAnchor.MiddleLeft;
-            }
-            GUI.Label(new Rect(Screen.width * 0.08f, Screen.height - 40f, Screen.width * 0.9f, 28f),
-                "WASD move | mouse aim | LMB attack | R reload | Q/E swap weapon | Backspace backtrack",
-                _hintStyle);
-        }
-
-        private GUIStyle _hintStyle;
 
         private void QuitGame()
         {

@@ -20,6 +20,7 @@ namespace ADCREA.Player
 
         private float _invulnerableTimer;
         private SpriteRenderer _sprite;
+        private int _baseMaxHealth;
 
         public bool IsInvulnerable
         {
@@ -28,8 +29,22 @@ namespace ADCREA.Player
 
         private void Awake()
         {
+            // The inspector value is the permanent baseline; Iron Heart upgrades raise
+            // maxHealth during a run and ResetForNewRun snaps back to this.
+            _baseMaxHealth = maxHealth;
             CurrentHealth = maxHealth;
             _sprite = GetComponentInChildren<SpriteRenderer>();
+        }
+
+        /// <summary>Run-scoped max-HP upgrade: the new heart arrives filled.</summary>
+        public void IncreaseMaxHealth(int amount)
+        {
+            if (amount <= 0)
+            {
+                return;
+            }
+            maxHealth += amount;
+            CurrentHealth = Mathf.Min(CurrentHealth + amount, maxHealth);
         }
 
         private void Update()
@@ -115,6 +130,7 @@ namespace ADCREA.Player
 
         public void ResetForNewRun()
         {
+            maxHealth = _baseMaxHealth;
             CurrentHealth = maxHealth;
             _invulnerableTimer = 0f;
             RestoreSpriteAlpha();

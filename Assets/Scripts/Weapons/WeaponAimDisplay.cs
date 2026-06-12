@@ -16,8 +16,12 @@ namespace ADCREA.Weapons
     /// </summary>
     public class WeaponAimDisplay : MonoBehaviour
     {
-        /// <summary>Distance from the player's centre to the sprite's left edge.</summary>
-        public const float HoldDistance = 0.45f;
+        /// <summary>
+        /// Distance from the player's centre to the sprite's left edge. Tight to the
+        /// body so the grip reads as held, not hovering - melee enemies press right up
+        /// against the player, and a floaty weapon sat visually inside them.
+        /// </summary>
+        public const float HoldDistance = 0.18f;
 
         private static readonly Dictionary<string, Sprite> SpriteCache = new Dictionary<string, Sprite>();
 

@@ -137,12 +137,12 @@ namespace ADCREA.Weapons
 
             var rifle = new WeaponDefinition();
             rifle.DisplayName = "Assault Rifle";
-            // Demoted from full auto: holding the trigger trivialized every room, so
-            // the rifle is now a deliberate semi-auto at two rounds per second.
+            // Semi-auto, but quick: 0.15s between shots means click speed is the real
+            // rate limit, without the hold-to-win feel of true full auto.
             rifle.Mode = FireMode.SemiAuto;
             rifle.Damage = 1f;
             rifle.MagazineSize = 30;
-            rifle.AttackSpeed = 2f;
+            rifle.AttackSpeed = 6.7f;
             rifle.InaccuracyDegrees = 25f;
             rifle.ProjectileVelocity = 14f;
             rifle.ReloadTime = 1.8f;
@@ -150,7 +150,7 @@ namespace ADCREA.Weapons
             rifle.SpriteResource = "Weapons/AssaultRifle";
             rifle.SpriteSize = new Vector2(2f, 1f);
             rifle.Tint = new Color(0.25f, 0.27f, 0.3f);
-            rifle.SpecialNote = "One shot per click, 0.5s between shots";
+            rifle.SpecialNote = "One shot per click, 0.15s between shots";
             pool.Add(rifle);
 
             var broadsword = new WeaponDefinition();

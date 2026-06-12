@@ -30,7 +30,12 @@ namespace ADCREA.Weapons
 
         private WeaponInstance _activeWeapon;   // Tracked to detect Q/E swaps mid-reload.
         private float _cooldownTimer;
+        private float _cooldownDuration;        // Remembered so the meter can show progress.
         private float _timeSinceLastShot = 99f; // Large start: the first shot is always fully settled.
+
+        private SpriteRenderer _cooldownBack;
+        private SpriteRenderer _cooldownFill;
+        private const float CooldownMeterWidth = 1.1f;
 
         private bool _reloading;
         private float _reloadTimer;
@@ -39,7 +44,10 @@ namespace ADCREA.Weapons
 
         private SpriteRenderer _swingFlash;
         private float _flashTimer;
-        private const float FlashDuration = 0.15f;
+        private float _sweepStartDegrees;
+        private float _sweepEndDegrees;
+        private float _sweepRadius;
+        private const float FlashDuration = 0.18f;
         private const float HitscanMaxDistance = 40f;
 
         public bool IsReloading
@@ -66,11 +74,13 @@ namespace ADCREA.Weapons
             _display = WeaponAimDisplay.Create(transform);
             _rng = new System.Random();
             CreateSwingFlash();
+            CreateCooldownMeter();
         }
 
         private void Update()
         {
-            FadeSwingFlash();
+            UpdateSwingFlash();
+            UpdateCooldownMeter();
 
             if (!GameSession.IsPlaying)
             {
@@ -172,7 +182,58 @@ namespace ADCREA.Weapons
             if (attacksPerSecond > 0f)
             {
                 _cooldownTimer = 1f / attacksPerSecond;
+                _cooldownDuration = _cooldownTimer;
             }
+        }
+
+        // ---------------------------------------------------------- cooldown meter
+
+        // The thin white line floating over the player's head: empty right after a
+        // shot, full when the trigger is ready again. Hidden entirely while ready so
+        // the screen stays clean between fights.
+        private void CreateCooldownMeter()
+        {
+            var backObject = new GameObject("CooldownMeterBack");
+            backObject.transform.SetParent(transform, false);
+            backObject.transform.localPosition = new Vector3(0f, 1.25f, 0f);
+            backObject.transform.localScale = new Vector3(CooldownMeterWidth, 0.09f, 1f);
+            _cooldownBack = backObject.AddComponent<SpriteRenderer>();
+            _cooldownBack.sprite = RuntimeSprites.SolidSquare();
+            _cooldownBack.color = new Color(0f, 0f, 0f, 0.55f);
+            _cooldownBack.sortingOrder = 7;
+            _cooldownBack.enabled = false;
+
+            var fillObject = new GameObject("CooldownMeterFill");
+            fillObject.transform.SetParent(transform, false);
+            _cooldownFill = fillObject.AddComponent<SpriteRenderer>();
+            _cooldownFill.sprite = RuntimeSprites.SolidSquare();
+            _cooldownFill.color = new Color(1f, 1f, 1f, 0.9f);
+            _cooldownFill.sortingOrder = 8;
+            _cooldownFill.enabled = false;
+        }
+
+        private void UpdateCooldownMeter()
+        {
+            if (_cooldownBack == null)
+            {
+                return;
+            }
+
+            // Sub-tenth-of-a-second cooldowns flicker more than they inform.
+            bool visible = _cooldownTimer > 0f && _cooldownDuration > 0.1f && _activeWeapon != null;
+            _cooldownBack.enabled = visible;
+            _cooldownFill.enabled = visible;
+            if (!visible)
+            {
+                return;
+            }
+
+            float progress = 1f - Mathf.Clamp01(_cooldownTimer / _cooldownDuration);
+            float width = CooldownMeterWidth * progress;
+            // Grows from the left edge: the fill's centre shifts right as it widens.
+            _cooldownFill.transform.localScale = new Vector3(width, 0.07f, 1f);
+            _cooldownFill.transform.localPosition = new Vector3(
+                -(CooldownMeterWidth - width) * 0.5f, 1.25f, 0f);
         }
 
         // ------------------------------------------------------------------ shooting
@@ -205,6 +266,10 @@ namespace ADCREA.Weapons
 
             Vector3 muzzle = _display.MuzzlePosition(transform.position, aim, def);
             float spread = CurrentSpreadDegrees(weapon);
+
+            // Muzzle flash in the weapon's colour - cheap square shards, one burst per
+            // trigger pull regardless of pellet count.
+            ParticleBurst.Spawn(muzzle, aim, def.Tint, 6, 5f);
 
             if (def.Hitscan)
             {
@@ -357,13 +422,15 @@ namespace ADCREA.Weapons
 
             // Range is measured from the player's edge; the body radius makes a 1-unit
             // sword feel like 1 unit of blade instead of vanishing inside the collider.
-            float radius = 0.9f + def.MeleeRange;
+            // Kept tight on purpose - a generous swing radius made the sword feel like
+            // it hit things it visibly should not have.
+            float radius = 0.6f + def.MeleeRange;
 
-            ShowSwingFlash(aim, radius, fullCircle, def.Tint);
+            ShowSwingFlash(aim, radius, def.MeleeArcDegrees, fullCircle, def.Tint);
 
-            // The extra half unit accepts enemies whose centre is just outside the arc
+            // The small extra accepts enemies whose centre is just outside the arc
             // but whose body is inside it.
-            Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, radius + 0.5f);
+            Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, radius + 0.25f);
             for (int i = 0; i < hits.Length; i++)
             {
                 EnemyHealth enemy = hits[i].GetComponentInParent<EnemyHealth>();
@@ -488,33 +555,38 @@ namespace ADCREA.Weapons
             _swingFlash.enabled = false;
         }
 
-        private void ShowSwingFlash(Vector2 aim, float radius, bool fullCircle, Color tint)
+        /// <summary>
+        /// Arms the swing animation: a blade-shaped quad that UpdateSwingFlash sweeps
+        /// across the weapon's arc (the full circle on a crit). The damage was already
+        /// applied instantly when the swing started - the sweep is pure presentation,
+        /// so animation timing can be tuned without touching combat balance.
+        /// </summary>
+        private void ShowSwingFlash(Vector2 aim, float radius, float arcDegrees, bool fullCircle, Color tint)
         {
+            float aimDegrees = Mathf.Atan2(aim.y, aim.x) * Mathf.Rad2Deg;
+            float halfArc = arcDegrees * 0.5f;
             if (fullCircle)
             {
-                _swingFlash.transform.position = transform.position;
-                _swingFlash.transform.rotation = Quaternion.identity;
-                _swingFlash.transform.localScale = new Vector3(radius * 2f, radius * 2f, 1f);
+                halfArc = 180f;
             }
-            else
-            {
-                // A rotated square covering the front arc - reads as "this area was hit"
-                // and shows the exact reach without arc-mesh complexity.
-                Vector2 center = (Vector2)transform.position + aim * (radius * 0.55f);
-                float angle = Mathf.Atan2(aim.y, aim.x) * Mathf.Rad2Deg;
-                _swingFlash.transform.position = center;
-                _swingFlash.transform.rotation = Quaternion.Euler(0f, 0f, angle);
-                _swingFlash.transform.localScale = new Vector3(radius, radius * 1.4f, 1f);
-            }
+            _sweepStartDegrees = aimDegrees - halfArc;
+            _sweepEndDegrees = aimDegrees + halfArc;
+            _sweepRadius = radius;
+
+            // A thin blade rather than a filled wedge: watching it travel communicates
+            // the 90-degree coverage better than a static block ever did.
+            _swingFlash.transform.localScale = new Vector3(radius * 0.95f, 0.3f, 1f);
 
             Color color = tint;
-            color.a = 0.35f;
+            color.a = 0.55f;
             _swingFlash.color = color;
             _swingFlash.enabled = true;
             _flashTimer = FlashDuration;
+
+            UpdateSwingFlash();
         }
 
-        private void FadeSwingFlash()
+        private void UpdateSwingFlash()
         {
             if (_swingFlash == null || !_swingFlash.enabled)
             {
@@ -528,8 +600,19 @@ namespace ADCREA.Weapons
                 return;
             }
 
+            // Anchored to the live player position so the blade stays in hand even
+            // when the swing happens mid-run.
+            float progress = 1f - _flashTimer / FlashDuration;
+            float angle = Mathf.Lerp(_sweepStartDegrees, _sweepEndDegrees, progress);
+            float radians = angle * Mathf.Deg2Rad;
+            var direction = new Vector2(Mathf.Cos(radians), Mathf.Sin(radians));
+
+            _swingFlash.transform.position = transform.position + (Vector3)(direction * (_sweepRadius * 0.55f));
+            _swingFlash.transform.rotation = Quaternion.Euler(0f, 0f, angle);
+
+            // Full strength for most of the sweep, quick fade right at the end.
             Color color = _swingFlash.color;
-            color.a = 0.35f * (_flashTimer / FlashDuration);
+            color.a = 0.55f * Mathf.Clamp01(_flashTimer / (FlashDuration * 0.35f));
             _swingFlash.color = color;
         }
     }

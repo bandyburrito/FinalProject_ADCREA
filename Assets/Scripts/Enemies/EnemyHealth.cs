@@ -85,6 +85,16 @@ namespace ADCREA.Enemies
         private void Die()
         {
             _dead = true;
+
+            // Death-split BEFORE the death report: the spawned slimelets must already
+            // be registered with the room, or it would briefly count as cleared and
+            // hand out the boss reward while ten new enemies are materializing.
+            SplitOnDeath split = GetComponent<SplitOnDeath>();
+            if (split != null)
+            {
+                split.TriggerSplit();
+            }
+
             if (_room != null)
             {
                 _room.NotifyEnemyDeath(this);

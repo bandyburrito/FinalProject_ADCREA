@@ -1,40 +1,38 @@
 using UnityEngine;
 using ADCREA.Dungeon;
-using ADCREA.Enemies;
+using ADCREA.Player;
 
-namespace ADCREA.Weapons
+namespace ADCREA.Enemies
 {
     /// <summary>
-    /// Small square bullet. Uses a kinematic Rigidbody2D so trigger contacts fire against
-    /// the static wall and enemy colliders; the first solid thing it touches stops it -
-    /// enemies additionally take the shot's damage (crit multipliers already applied by
-    /// the weapon controller at fire time).
+    /// A square bullet fired AT the player by ranged enemies - the mirror of the
+    /// player's Projectile. Passes straight through other enemies (no friendly fire,
+    /// and gunners behind the front line stay dangerous), stops on walls and on the
+    /// player, who takes the hit through the normal invulnerability-frame rules.
     /// </summary>
-    public class Projectile : MonoBehaviour
+    public class EnemyProjectile : MonoBehaviour
     {
-        private float _damage;
-        private float _lifeTimer;
+        private int _damage;
         private Color _tint;
         private Vector2 _direction;
+        private float _lifeTimer;
 
-        public static Projectile Fire(Vector3 origin, Vector2 direction, float speed,
-            float damage, Color tint, float size)
+        public static EnemyProjectile Fire(Vector3 origin, Vector2 direction, float speed, int damage)
         {
-            var bulletObject = new GameObject("Projectile");
+            var bulletObject = new GameObject("EnemyProjectile");
             bulletObject.transform.position = origin;
-            bulletObject.transform.localScale = new Vector3(size, size, 1f);
+            bulletObject.transform.localScale = new Vector3(0.3f, 0.3f, 1f);
 
-            Projectile projectile = bulletObject.AddComponent<Projectile>();
+            EnemyProjectile projectile = bulletObject.AddComponent<EnemyProjectile>();
             projectile._damage = damage;
-            projectile._tint = tint;
             projectile._direction = direction;
-            // Rooms are walled in, so the wall normally ends a bullet's life; the timer
-            // is a backstop sized to outlive any possible flight across a room.
+            // Icy blue: reads as "enemy shot" against the player's weapon-tinted bullets.
+            projectile._tint = new Color(0.45f, 0.7f, 1f);
             projectile._lifeTimer = 30f / Mathf.Max(speed, 0.1f);
 
             var renderer = bulletObject.AddComponent<SpriteRenderer>();
             renderer.sprite = RuntimeSprites.SolidSquare();
-            renderer.color = tint;
+            renderer.color = projectile._tint;
             renderer.sortingOrder = 5;
 
             var trigger = bulletObject.AddComponent<BoxCollider2D>();
@@ -60,24 +58,33 @@ namespace ADCREA.Weapons
 
         private void OnTriggerEnter2D(Collider2D other)
         {
-            // Doors, pickups and altar plates are triggers - bullets fly straight over them.
             if (other.isTrigger)
             {
                 return;
             }
+
             if (other.CompareTag("Player"))
+            {
+                PlayerHealth health = other.GetComponent<PlayerHealth>();
+                if (health != null)
+                {
+                    health.TakeDamage(_damage);
+                }
+                Impact();
+                return;
+            }
+
+            // Other enemies never block the shot - gunners can fire over the melee line.
+            if (other.GetComponentInParent<EnemyHealth>() != null)
             {
                 return;
             }
 
-            EnemyHealth enemy = other.GetComponentInParent<EnemyHealth>();
-            if (enemy != null)
-            {
-                enemy.TakeDamage(_damage);
-            }
+            Impact();
+        }
 
-            // Walls and enemies both stop the shot; the impact sprays back the way
-            // the bullet came so hits read clearly even on fast shots.
+        private void Impact()
+        {
             ParticleBurst.Spawn(transform.position, -_direction, _tint, 4, 3f);
             Destroy(gameObject);
         }

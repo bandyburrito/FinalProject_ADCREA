@@ -51,7 +51,7 @@ namespace ADCREA.Dungeon
             hintObject.transform.localPosition = new Vector3(0f, 0.85f, 0f);
 
             TextMesh text = hintObject.AddComponent<TextMesh>();
-            text.text = "1 HP = random upgrade";
+            text.text = "1 HP = random blessing";
             text.fontSize = 48;
             text.characterSize = 0.04f;
             text.anchor = TextAnchor.MiddleCenter;
@@ -87,18 +87,14 @@ namespace ADCREA.Dungeon
                 return;
             }
 
-            // Heal is excluded from the gamble: paying 1 HP to win 1 HP back would be
-            // a pointless coin flip. The altar only rolls the two weapon upgrades.
-            UpgradeKind reward;
-            if (_lootRng.Next(2) == 0)
+            // The altar collected its due but the offering was fatal: a corpse gets
+            // no blessing - granting one would heal a player mid-death-screen.
+            if (health.CurrentHealth <= 0)
             {
-                reward = UpgradeKind.DamagePlus25Percent;
-            }
-            else
-            {
-                reward = UpgradeKind.CritPlus20Percent;
+                return;
             }
 
+            UpgradeKind reward = UpgradeOption.RollAltar(_lootRng);
             GameSession.Instance.ApplyUpgrade(reward);
             Debug.Log("Sacrifice accepted: 1 HP for " + reward + ".");
         }

@@ -59,8 +59,9 @@ namespace ADCREA.Enemies
         {
             if (target == null) return;
 
-            // Only the room the player is currently in runs its AI.
-            if (!RoomManager.IsActive(_room)) return;
+            // Only the room the player is currently in runs its AI - and only after the
+            // short entry grace, so walking through a door is never an instant hit.
+            if (!RoomManager.IsEngaged(_room)) return;
 
             float distToTarget = Vector2.Distance(transform.position, target.position);
             if (distToTarget <= attackRange)

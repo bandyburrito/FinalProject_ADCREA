@@ -38,6 +38,14 @@ namespace ADCREA.Algorithms
             if (Instance == this) Instance = null;
         }
 
+        /// <summary>
+        /// Breathing room after stepping through a door: enemies hold still this long
+        /// before engaging, so arriving in a packed room is never an instant hit.
+        /// </summary>
+        public const float EngagementGraceSeconds = 0.4f;
+
+        private float _activatedTime;
+
         public void SetActiveRoom(RoomGrid room)
         {
             if (ActiveRoom == room)
@@ -45,6 +53,9 @@ namespace ADCREA.Algorithms
                 return;
             }
             ActiveRoom = room;
+            // Scaled time on purpose: menus freeze the clock, so the grace window only
+            // starts counting once the game is actually running.
+            _activatedTime = Time.time;
             if (ActiveRoomChanged != null)
             {
                 ActiveRoomChanged.Invoke(room);
@@ -56,6 +67,23 @@ namespace ADCREA.Algorithms
         {
             // No manager → don't gate anything. A manager with no active room yet → nothing runs.
             return Instance == null || Instance.ActiveRoom == room;
+        }
+
+        /// <summary>
+        /// Like <see cref="IsActive"/>, but additionally false during the short grace
+        /// window right after the player enters the room. Enemy brains check this one.
+        /// </summary>
+        public static bool IsEngaged(RoomGrid room)
+        {
+            if (Instance == null)
+            {
+                return true;
+            }
+            if (Instance.ActiveRoom != room)
+            {
+                return false;
+            }
+            return Time.time - Instance._activatedTime >= EngagementGraceSeconds;
         }
     }
 }
