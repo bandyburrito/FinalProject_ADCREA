@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using ADCREA.Algorithms;
 using ADCREA.Player;
 using ADCREA.UI;
 using ADCREA.Weapons;
@@ -40,9 +41,25 @@ namespace ADCREA.Dungeon
         public GameState State { get; private set; }
         public int FloorNumber { get; private set; }
 
+        // How many combat rooms (normal + boss) the player has cleared this run. Drives the
+        // "+3% enemy health per room" scaling the generator reads.
+        public int RoomsCleared { get; private set; }
+
         private DungeonGenerator _generator;
         private TreasurePedestal _pendingPedestal;
         private readonly System.Random _choiceRng = new System.Random();
+
+        // Per-room upgrade lottery: starts at 5%, climbs 5% per cleared room that paid out
+        // nothing, snaps back to 5% the moment an upgrade is offered.
+        private float _upgradeChance = 0.05f;
+
+        // Luck! (a hidden Tier 2 upgrade): doubles the per-room upgrade chance and removes
+        // Tier 3 from the offer pool for the rest of the run.
+        private bool _luckActive;
+
+        // Set whenever the player is hit inside the boss room; a flawless kill keeps it
+        // false and unlocks the better Tier 1 odds on the boss reward.
+        private bool _bossFightDamageTaken;
 
         private GUIStyle _titleStyle;
         private GUIStyle _subtitleStyle;
@@ -134,10 +151,46 @@ namespace ADCREA.Dungeon
         }
 
         /// <summary>
-        /// Called by the boss room when its last enemy dies. Every boss pays out a
-        /// weapon choice: it fills the free second slot, or swaps out the equipped
-        /// weapon once both slots are full - unless the player skips to keep their
-        /// upgraded loadout. Either way the run continues on a harder floor.
+        /// Called by a normal room when its last enemy dies. Runs the per-room upgrade
+        /// lottery: the chance climbs each barren room and resets when it finally pays out.
+        /// </summary>
+        public void HandleRoomCleared()
+        {
+            if (State != GameState.Playing || ChoiceScreen.IsOpen)
+            {
+                return;
+            }
+
+            RoomsCleared++;
+
+            float chance = _upgradeChance;
+            if (_luckActive)
+            {
+                chance = Mathf.Min(chance * 2f, 1f);
+            }
+
+            if (_choiceRng.NextDouble() < chance)
+            {
+                // A payout resets the streak; a dry room raises the odds for the next one.
+                _upgradeChance = 0.05f;
+                ShowUpgradeChoice(false, false, "Spoils of Battle", OnRoomClearUpgradePicked);
+            }
+            else
+            {
+                _upgradeChance = Mathf.Min(_upgradeChance + 0.05f, 1f);
+            }
+        }
+
+        private void OnRoomClearUpgradePicked(UpgradeKind kind)
+        {
+            ApplyUpgrade(kind);
+            Time.timeScale = 1f;
+        }
+
+        /// <summary>
+        /// Called by the boss room when its last enemy dies. A boss pays out BOTH a
+        /// guaranteed treasure-quality upgrade (shown first, with better Tier 1 odds on a
+        /// flawless kill) and then a weapon choice, before the floor advances.
         /// </summary>
         public void HandleBossDefeated()
         {
@@ -146,21 +199,111 @@ namespace ADCREA.Dungeon
                 return;
             }
 
+            RoomsCleared++;
+            bool noDamage = !_bossFightDamageTaken;
+            // The next floor's boss fight must judge "no damage" on its own.
+            _bossFightDamageTaken = false;
+
+            State = GameState.ChoosingWeapon;
+            Time.timeScale = 0f;
+            ShowUpgradeChoice(true, noDamage, "Boss Down - Claim a Reward", OnBossUpgradePicked);
+        }
+
+        private void OnBossUpgradePicked(UpgradeKind kind)
+        {
+            ApplyUpgrade(kind);
+            ShowPostBossWeaponChoice();
+        }
+
+        /// <summary>
+        /// The second half of the boss reward: fill the free weapon slot, or swap the
+        /// equipped weapon once both slots are full - unless the player skips to keep their
+        /// upgraded loadout.
+        /// </summary>
+        private void ShowPostBossWeaponChoice()
+        {
             WeaponInventory inventory = FindAnyObjectByType<WeaponInventory>();
             bool slotsFull = inventory != null && inventory.Count >= WeaponInventory.MaxWeapons;
 
             // The title carries the context; the skip pill itself stays a single word
             // so it can never outgrow its button.
-            string title = "Boss Down - Claim a Second Weapon";
+            string title = "Claim a Second Weapon";
             if (slotsFull)
             {
                 title = "Floor " + FloorNumber + " Cleared - Swap Your Weapon?";
             }
 
-            State = GameState.ChoosingWeapon;
-            Time.timeScale = 0f;
             EnsureChoiceScreen().ShowWeapons(RollThreeWeapons(true), title,
                 OnPostBossWeaponPicked, "Skip");
+        }
+
+        /// <summary>
+        /// Picks one tier for the offer (60/30/10 after an enemy room, no Tier 3 in
+        /// treasure rooms / boss rewards) and shows three cards from it. Heal cards are
+        /// filtered out when the player is already at full health.
+        /// </summary>
+        private void ShowUpgradeChoice(bool treasureOrBoss, bool noDamageBoss,
+            string title, ChoiceScreen.UpgradePickedHandler onPicked)
+        {
+            Time.timeScale = 0f;
+            int tier = RollUpgradeTier(treasureOrBoss, noDamageBoss);
+            bool full = PlayerAtFullHealth();
+            EnsureChoiceScreen().ShowUpgrades(
+                UpgradeOption.OfferFromTier(tier, _choiceRng, full), title, onPicked);
+        }
+
+        private int RollUpgradeTier(bool treasureOrBoss, bool noDamageBoss)
+        {
+            double roll = _choiceRng.NextDouble();
+
+            if (treasureOrBoss)
+            {
+                // Tier 3 never shows in treasure rooms or boss rewards. A flawless boss
+                // kill lifts the Tier 1 share from 25% to 50%.
+                double tier1 = noDamageBoss ? 0.50 : 0.25;
+                return roll < tier1 ? 1 : 2;
+            }
+
+            // Enemy room. Luck! strips Tier 3, collapsing the split to the treasure odds.
+            if (_luckActive)
+            {
+                return roll < 0.25 ? 1 : 2;
+            }
+
+            if (roll < 0.10)
+            {
+                return 1;
+            }
+            if (roll < 0.40)
+            {
+                return 2;
+            }
+            return 3;
+        }
+
+        /// <summary>Set whenever the player takes a hit while standing in the boss room.</summary>
+        public void NotifyPlayerDamaged()
+        {
+            if (PlayerInBossRoom())
+            {
+                _bossFightDamageTaken = true;
+            }
+        }
+
+        private bool PlayerInBossRoom()
+        {
+            if (RoomManager.Instance == null || RoomManager.Instance.ActiveRoom == null)
+            {
+                return false;
+            }
+            DungeonRoom room = RoomManager.Instance.ActiveRoom.GetComponent<DungeonRoom>();
+            return room != null && room.Type == RoomType.Boss;
+        }
+
+        private bool PlayerAtFullHealth()
+        {
+            PlayerHealth health = FindAnyObjectByType<PlayerHealth>();
+            return health != null && health.IsAtFullHealth;
         }
 
         private void OnPostBossWeaponPicked(WeaponDefinition weapon)
@@ -219,9 +362,8 @@ namespace ADCREA.Dungeon
             }
 
             _pendingPedestal = pedestal;
-            Time.timeScale = 0f;
-            EnsureChoiceScreen().ShowUpgrades(UpgradeOption.TreasureOffer(_choiceRng),
-                "Choose an Upgrade", OnTreasureUpgradePicked);
+            // Treasure rooms roll the treasure odds (Tier 2/1 only, no Tier 3).
+            ShowUpgradeChoice(true, false, "Choose an Upgrade", OnTreasureUpgradePicked);
             return true;
         }
 
@@ -238,11 +380,118 @@ namespace ADCREA.Dungeon
         }
 
         /// <summary>
-        /// Shared with the sacrifice altar, which rolls one of these at random. Every
-        /// branch announces itself as floating text over the player - rewards that
-        /// only changed a hidden number used to be impossible to notice.
+        /// Applies one upgrade by its data-driven effect list. Shared with the sacrifice
+        /// altar (which rolls one at random) and announces itself as floating text over the
+        /// player - a hidden stat change used to be impossible to notice.
         /// </summary>
         public void ApplyUpgrade(UpgradeKind kind)
+        {
+            UpgradeData data = UpgradeOption.Data(kind);
+            if (data == null)
+            {
+                return;
+            }
+
+            if (data.IsLuck)
+            {
+                // No visible stats: it quietly bends the rest of the run's upgrade rolls.
+                _luckActive = true;
+            }
+            else if (data.IsJackpot)
+            {
+                ApplyJackpot();
+            }
+            else
+            {
+                ApplyEffects(data.Effects);
+            }
+
+            SpawnUpgradePopup(data.Name, data.Tint);
+        }
+
+        /// <summary>777: the effects of one random Tier 1 upgrade, applied twice.</summary>
+        private void ApplyJackpot()
+        {
+            bool full = PlayerAtFullHealth();
+            UpgradeKind pick = UpgradeOption.RandomFromTier(1, _choiceRng, full);
+            // 777 lives in Tier 1 too; never let it pick itself into a loop.
+            int guard = 0;
+            while (pick == UpgradeKind.Sevens && guard < 32)
+            {
+                pick = UpgradeOption.RandomFromTier(1, _choiceRng, full);
+                guard++;
+            }
+
+            UpgradeData data = UpgradeOption.Data(pick);
+            if (data == null)
+            {
+                return;
+            }
+            ApplyEffects(data.Effects);
+            ApplyEffects(data.Effects);
+        }
+
+        private void ApplyEffects(UpgradeEffect[] effects)
+        {
+            PlayerWeaponStats stats = WeaponStats();
+            PlayerHealth health = FindAnyObjectByType<PlayerHealth>();
+            PlayerMovementScript movement = FindAnyObjectByType<PlayerMovementScript>();
+
+            for (int i = 0; i < effects.Length; i++)
+            {
+                ApplyEffect(effects[i], stats, health, movement);
+            }
+        }
+
+        private void ApplyEffect(UpgradeEffect effect, PlayerWeaponStats stats,
+            PlayerHealth health, PlayerMovementScript movement)
+        {
+            switch (effect.Stat)
+            {
+                case UpgradeStat.Damage:
+                    if (stats != null) stats.ApplyDamagePercentUpgrade(effect.Value);
+                    break;
+                case UpgradeStat.AttackSpeed:
+                    if (stats != null) stats.ApplyAttackSpeedPercentUpgrade(effect.Value);
+                    break;
+                case UpgradeStat.CritChance:
+                    if (stats != null) stats.ApplyCritChanceUpgrade(effect.Value / 100f);
+                    break;
+                case UpgradeStat.Accuracy:
+                    // More accuracy means a tighter spread cone, so the sign flips.
+                    if (stats != null) stats.ApplyInaccuracyPercentUpgrade(-effect.Value);
+                    break;
+                case UpgradeStat.ReloadTime:
+                    if (stats != null) stats.ApplyReloadTimePercentUpgrade(effect.Value);
+                    break;
+                case UpgradeStat.BulletVelocity:
+                    if (stats != null) stats.ApplyShotSpeedPercentUpgrade(effect.Value);
+                    break;
+                case UpgradeStat.CritDamage:
+                    if (stats != null) stats.ApplyCritDamagePercentUpgrade(effect.Value);
+                    break;
+                case UpgradeStat.MoveSpeed:
+                    if (movement != null) movement.ApplyMoveSpeedPercentUpgrade(effect.Value);
+                    break;
+                case UpgradeStat.HealHp:
+                    if (health != null) health.Heal(Mathf.RoundToInt(effect.Value));
+                    break;
+                case UpgradeStat.HealFull:
+                    if (health != null) health.HealToFull();
+                    break;
+                case UpgradeStat.MaxHp:
+                    if (health != null) health.ChangeMaxHealth(Mathf.RoundToInt(effect.Value));
+                    break;
+                case UpgradeStat.SetMaxHp:
+                    if (health != null) health.SetMaxHealthTo(Mathf.RoundToInt(effect.Value));
+                    break;
+                case UpgradeStat.TempHp:
+                    if (health != null) health.AddTempHealth(Mathf.RoundToInt(effect.Value));
+                    break;
+            }
+        }
+
+        private void SpawnUpgradePopup(string text, Color tint)
         {
             PlayerHealth health = FindAnyObjectByType<PlayerHealth>();
             Vector3 popupPosition = Vector3.zero;
@@ -250,109 +499,18 @@ namespace ADCREA.Dungeon
             {
                 popupPosition = health.transform.position;
             }
-
-            WeaponInstance weapon = EquippedWeapon();
-
-            switch (kind)
-            {
-                case UpgradeKind.HealOneHeart:
-                    if (health != null)
-                    {
-                        health.Heal(1);
-                        FloatingText.Spawn(popupPosition, "+1 HP", new Color(0.9f, 0.3f, 0.35f));
-                    }
-                    break;
-
-                case UpgradeKind.MaxHealthPlusOne:
-                    if (health != null)
-                    {
-                        health.IncreaseMaxHealth(1);
-                        FloatingText.Spawn(popupPosition, "+1 MAX HP", new Color(0.85f, 0.4f, 0.45f));
-                    }
-                    break;
-
-                case UpgradeKind.BloodPactHeal:
-                    if (health != null)
-                    {
-                        // The altar's joke deal: it already collected 1 HP, so this
-                        // nets the player +1 - the house loses for once.
-                        health.Heal(2);
-                        FloatingText.Spawn(popupPosition, "BLOOD PACT +2 HP", new Color(0.85f, 0.2f, 0.25f));
-                    }
-                    break;
-
-                case UpgradeKind.DamagePlus25Percent:
-                    if (weapon != null)
-                    {
-                        weapon.ApplyDamagePercentUpgrade(25f);
-                        FloatingText.Spawn(popupPosition,
-                            "+25% DMG  " + weapon.Definition.DisplayName
-                            + " (now " + weapon.EffectiveDamage().ToString("0.##") + ")",
-                            new Color(0.95f, 0.6f, 0.25f));
-                    }
-                    break;
-
-                case UpgradeKind.CritPlus20Percent:
-                    if (weapon != null)
-                    {
-                        weapon.ApplyCritChanceUpgrade(0.20f);
-                        FloatingText.Spawn(popupPosition,
-                            "+20% CRIT  " + weapon.Definition.DisplayName
-                            + " (now " + Mathf.RoundToInt(weapon.EffectiveCritChance() * 100f) + "%)",
-                            new Color(0.45f, 0.85f, 0.4f));
-                    }
-                    break;
-
-                case UpgradeKind.AttackSpeedPlus20Percent:
-                    if (weapon != null)
-                    {
-                        weapon.ApplyAttackSpeedPercentUpgrade(20f);
-                        FloatingText.Spawn(popupPosition,
-                            "+20% ATK SPEED  " + weapon.Definition.DisplayName,
-                            new Color(0.95f, 0.85f, 0.4f));
-                    }
-                    break;
-
-                case UpgradeKind.ReloadTimeMinus20Percent:
-                    if (weapon != null)
-                    {
-                        weapon.ApplyReloadTimePercentUpgrade(-20f);
-                        FloatingText.Spawn(popupPosition,
-                            "-20% RELOAD  " + weapon.Definition.DisplayName,
-                            new Color(0.5f, 0.7f, 0.9f));
-                    }
-                    break;
-
-                case UpgradeKind.ShotSpeedPlus30Percent:
-                    if (weapon != null)
-                    {
-                        weapon.ApplyShotSpeedPercentUpgrade(30f);
-                        FloatingText.Spawn(popupPosition,
-                            "+30% SHOT SPEED  " + weapon.Definition.DisplayName,
-                            new Color(0.7f, 0.7f, 0.75f));
-                    }
-                    break;
-
-                case UpgradeKind.SteadyAimPlus30Percent:
-                    if (weapon != null)
-                    {
-                        weapon.ApplyInaccuracyPercentUpgrade(-30f);
-                        FloatingText.Spawn(popupPosition,
-                            "-30% SPREAD  " + weapon.Definition.DisplayName,
-                            new Color(0.6f, 0.85f, 0.9f));
-                    }
-                    break;
-            }
+            FloatingText.Spawn(popupPosition, text, tint);
         }
 
-        private WeaponInstance EquippedWeapon()
+        private PlayerWeaponStats WeaponStats()
         {
             WeaponInventory inventory = FindAnyObjectByType<WeaponInventory>();
             if (inventory == null)
             {
                 return null;
             }
-            return inventory.Equipped;
+            // The player's run-wide upgrades: applied here, read by every weapon.
+            return inventory.Stats;
         }
 
         /// <summary>
@@ -373,8 +531,18 @@ namespace ADCREA.Dungeon
                 inventory.ResetToEmpty();
             }
 
+            PlayerMovementScript movement = FindAnyObjectByType<PlayerMovementScript>();
+            if (movement != null)
+            {
+                movement.ResetForNewRun();
+            }
+
             FloorNumber = 1;
+            RoomsCleared = 0;
             _pendingPedestal = null;
+            _upgradeChance = 0.05f;
+            _luckActive = false;
+            _bossFightDamageTaken = false;
 
             EnsureGenerator();
             if (_generator != null)
@@ -408,6 +576,12 @@ namespace ADCREA.Dungeon
                 {
                     continue;
                 }
+                // The assault rifle is a reward gated behind the second boss: it never
+                // appears in the starting pick or the first boss reward (both at floor < 2).
+                if (IsAssaultRifle(candidate) && FloorNumber < 2)
+                {
+                    continue;
+                }
                 pool.Add(candidate);
             }
 
@@ -428,6 +602,11 @@ namespace ADCREA.Dungeon
                 picks[i] = pool[i];
             }
             return picks;
+        }
+
+        private static bool IsAssaultRifle(WeaponDefinition weapon)
+        {
+            return weapon != null && weapon.DisplayName == "Assault Rifle";
         }
 
         // ------------------------------------------------------------------ screens

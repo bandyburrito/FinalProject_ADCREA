@@ -45,7 +45,7 @@ namespace ADCREA.Weapons
         public int CritPelletsPerShot;     // Shotgun crits add pellets instead of damage.
         public bool IncrementalReload;     // Shotgun loads shell by shell; firing interrupts the reload.
         public bool BloomRecovery;         // Revolver: spread shrinks back to zero over BloomRecoverySeconds.
-        public float BloomRecoverySeconds = 1f;
+        public float BloomRecoverySeconds = 1f; // Base recovery window; attack speed upgrades shorten it.
         public bool DoubleCritOnLastShot;  // Revolver: the final round in the cylinder crits twice as often.
 
         // Melee specials.
@@ -137,20 +137,20 @@ namespace ADCREA.Weapons
 
             var rifle = new WeaponDefinition();
             rifle.DisplayName = "Assault Rifle";
-            // Semi-auto, but quick: 0.15s between shots means click speed is the real
-            // rate limit, without the hold-to-win feel of true full auto.
-            rifle.Mode = FireMode.SemiAuto;
+            // True full auto: hold to empty the magazine. The price is a wide, sloppy
+            // spray - it shreds at close range but wastes rounds at distance.
+            rifle.Mode = FireMode.Automatic;
             rifle.Damage = 1f;
             rifle.MagazineSize = 30;
             rifle.AttackSpeed = 6.7f;
-            rifle.InaccuracyDegrees = 25f;
+            rifle.InaccuracyDegrees = 45f;
             rifle.ProjectileVelocity = 14f;
             rifle.ReloadTime = 1.8f;
             rifle.CritChance = 0.05f;
             rifle.SpriteResource = "Weapons/AssaultRifle";
             rifle.SpriteSize = new Vector2(2f, 1f);
             rifle.Tint = new Color(0.25f, 0.27f, 0.3f);
-            rifle.SpecialNote = "One shot per click, 0.15s between shots";
+            rifle.SpecialNote = "Full auto: hold to fire, wide spray";
             pool.Add(rifle);
 
             var broadsword = new WeaponDefinition();

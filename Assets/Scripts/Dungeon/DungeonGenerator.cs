@@ -794,7 +794,19 @@ namespace ADCREA.Dungeon
         // eventually - the death screen reports how deep the player got.
         private float FloorHealthScale()
         {
-            return 1f + healthScalePerFloor * (CurrentFloor() - 1);
+            return (1f + healthScalePerFloor * (CurrentFloor() - 1)) * RoomsClearedHealthScale();
+        }
+
+        // Every enemy is 3% tankier for each room cleared this run. Read at spawn time, so
+        // a floor's enemies bake in the count standing when it generated.
+        private float RoomsClearedHealthScale()
+        {
+            int roomsCleared = 0;
+            if (GameSession.Instance != null)
+            {
+                roomsCleared = GameSession.Instance.RoomsCleared;
+            }
+            return 1f + 0.03f * roomsCleared;
         }
 
         private float FloorSpeedScale()

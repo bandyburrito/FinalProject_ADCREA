@@ -47,7 +47,11 @@ namespace ADCREA.Weapons
         private float _sweepStartDegrees;
         private float _sweepEndDegrees;
         private float _sweepRadius;
+        private float _swingBaseAlpha = 0.55f;   // Lifted to fully opaque when the real blade art is in play.
         private const float FlashDuration = 0.18f;
+        // The drawn blade reaches this multiple of the base swing radius - pure
+        // presentation, tuned so the tip lands about where the hitbox stops.
+        private const float SweepReachMultiplier = 1.5f;
         private const float HitscanMaxDistance = 40f;
 
         public bool IsReloading
@@ -104,6 +108,11 @@ namespace ADCREA.Weapons
                 CancelReload();
                 _cooldownTimer = 0f;
                 _timeSinceLastShot = 99f;
+                if (_swingFlash != null)
+                {
+                    // A sweep from the old weapon must not linger over the new one.
+                    _swingFlash.enabled = false;
+                }
             }
 
             if (weapon == null)
@@ -113,7 +122,16 @@ namespace ADCREA.Weapons
             }
 
             Vector2 aim = AimDirection();
-            _display.Show(weapon.Definition, aim);
+            // The held weapon hides while a melee swing is mid-sweep: the swinging blade
+            // sprite IS the sword, so leaving the idle one up would show two of them.
+            if (weapon.IsMelee && _swingFlash != null && _swingFlash.enabled)
+            {
+                _display.Hide();
+            }
+            else
+            {
+                _display.Show(weapon.Definition, aim);
+            }
 
             _cooldownTimer -= Time.deltaTime;
             _timeSinceLastShot += Time.deltaTime;
@@ -261,7 +279,7 @@ namespace ADCREA.Weapons
             }
             else
             {
-                damage *= CritDamageMultiplier(critTier);
+                damage *= EffectiveCritMultiplier(weapon, critTier);
             }
 
             Vector3 muzzle = _display.MuzzlePosition(transform.position, aim, def);
@@ -349,8 +367,9 @@ namespace ADCREA.Weapons
             if (weapon.Definition.BloomRecovery)
             {
                 // Full cone right after a shot, narrowing linearly to perfect accuracy
-                // once BloomRecoverySeconds have passed without firing.
-                float recovery = Mathf.Clamp01(_timeSinceLastShot / weapon.Definition.BloomRecoverySeconds);
+                // once the recovery window has passed without firing. Attack speed upgrades
+                // shorten that window, so they settle the revolver's aim faster.
+                float recovery = Mathf.Clamp01(_timeSinceLastShot / weapon.EffectiveBloomRecoverySeconds());
                 spread *= 1f - recovery;
             }
             return spread;
@@ -410,6 +429,20 @@ namespace ADCREA.Weapons
             return 1f;
         }
 
+        /// <summary>
+        /// The base crit multiplier (1x / 2x / 4x) lifted by the weapon's crit damage
+        /// upgrades. The bonus only applies on an actual crit - a normal hit stays 1x.
+        /// </summary>
+        private static float EffectiveCritMultiplier(WeaponInstance weapon, int critTier)
+        {
+            float multiplier = CritDamageMultiplier(critTier);
+            if (critTier > 0)
+            {
+                multiplier *= 1f + weapon.CritDamageBonus;
+            }
+            return multiplier;
+        }
+
         // ------------------------------------------------------------------ melee
 
         private void MeleeSwing(WeaponInstance weapon, Vector2 aim)
@@ -417,20 +450,21 @@ namespace ADCREA.Weapons
             WeaponDefinition def = weapon.Definition;
 
             int critTier = RollCritTier(weapon.EffectiveCritChance());
-            float damage = weapon.EffectiveDamage() * CritDamageMultiplier(critTier);
+            float damage = weapon.EffectiveDamage() * EffectiveCritMultiplier(weapon, critTier);
             bool fullCircle = critTier > 0 && def.CritHitsFullCircle;
 
             // Range is measured from the player's edge; the body radius makes a 1-unit
             // sword feel like 1 unit of blade instead of vanishing inside the collider.
-            // Kept tight on purpose - a generous swing radius made the sword feel like
-            // it hit things it visibly should not have.
+            // This is the base reach; the hit test below adds a margin on top of it.
             float radius = 0.6f + def.MeleeRange;
 
-            ShowSwingFlash(aim, radius, def.MeleeArcDegrees, fullCircle, def.Tint);
+            ShowSwingFlash(def, aim, radius, fullCircle);
+            // Drop the idle blade this same frame so it never overlaps the swinging one.
+            _display.Hide();
 
-            // The small extra accepts enemies whose centre is just outside the arc
-            // but whose body is inside it.
-            Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, radius + 0.25f);
+            // A generous margin past the body radius so the swing connects reliably with
+            // anything its arc covers, rather than whiffing on enemies pressed close.
+            Collider2D[] hits = Physics2D.OverlapCircleAll(transform.position, radius + 0.75f);
             for (int i = 0; i < hits.Length; i++)
             {
                 EnemyHealth enemy = hits[i].GetComponentInParent<EnemyHealth>();
@@ -556,30 +590,49 @@ namespace ADCREA.Weapons
         }
 
         /// <summary>
-        /// Arms the swing animation: a blade-shaped quad that UpdateSwingFlash sweeps
-        /// across the weapon's arc (the full circle on a crit). The damage was already
-        /// applied instantly when the swing started - the sweep is pure presentation,
-        /// so animation timing can be tuned without touching combat balance.
+        /// Arms the swing animation: the weapon's own blade sprite that UpdateSwingFlash
+        /// sweeps across the weapon's arc (the full circle on a crit). The damage was
+        /// already applied instantly when the swing started - the sweep is pure
+        /// presentation, so animation timing can be tuned without touching combat balance.
         /// </summary>
-        private void ShowSwingFlash(Vector2 aim, float radius, float arcDegrees, bool fullCircle, Color tint)
+        private void ShowSwingFlash(WeaponDefinition def, Vector2 aim, float radius, bool fullCircle)
         {
             float aimDegrees = Mathf.Atan2(aim.y, aim.x) * Mathf.Rad2Deg;
-            float halfArc = arcDegrees * 0.5f;
+            float halfArc = def.MeleeArcDegrees * 0.5f;
             if (fullCircle)
             {
                 halfArc = 180f;
             }
             _sweepStartDegrees = aimDegrees - halfArc;
             _sweepEndDegrees = aimDegrees + halfArc;
-            _sweepRadius = radius;
+            // The drawn blade reaches further than it hits - lengthening both its size and
+            // its sweep position keeps the hilt near the player and the tip twice as far out.
+            float visualRadius = radius * SweepReachMultiplier;
+            _sweepRadius = visualRadius;
 
-            // A thin blade rather than a filled wedge: watching it travel communicates
-            // the 90-degree coverage better than a static block ever did.
-            _swingFlash.transform.localScale = new Vector3(radius * 0.95f, 0.3f, 1f);
+            Sprite blade = WeaponAimDisplay.LoadSprite(def.SpriteResource);
+            if (blade != null)
+            {
+                // The real sword art, sized so the blade spans the visual radius while
+                // keeping its aspect ratio - never squashed, whatever the import settings.
+                _swingFlash.sprite = blade;
+                Vector2 worldSize = blade.bounds.size;
+                float scale = worldSize.x > 0.01f ? (visualRadius * 0.95f) / worldSize.x : 1f;
+                _swingFlash.transform.localScale = new Vector3(scale, scale, 1f);
+                _swingFlash.color = Color.white;
+                _swingBaseAlpha = 1f;
+            }
+            else
+            {
+                // No art imported: fall back to the thin tinted blade so the swing reads.
+                _swingFlash.sprite = RuntimeSprites.SolidSquare();
+                _swingFlash.transform.localScale = new Vector3(visualRadius * 0.95f, 0.3f, 1f);
+                Color color = def.Tint;
+                color.a = 0.55f;
+                _swingFlash.color = color;
+                _swingBaseAlpha = 0.55f;
+            }
 
-            Color color = tint;
-            color.a = 0.55f;
-            _swingFlash.color = color;
             _swingFlash.enabled = true;
             _flashTimer = FlashDuration;
 
@@ -609,10 +662,12 @@ namespace ADCREA.Weapons
 
             _swingFlash.transform.position = transform.position + (Vector3)(direction * (_sweepRadius * 0.55f));
             _swingFlash.transform.rotation = Quaternion.Euler(0f, 0f, angle);
+            // Flip vertically when the blade points left so the art never sweeps upside down.
+            _swingFlash.flipY = direction.x < 0f;
 
             // Full strength for most of the sweep, quick fade right at the end.
             Color color = _swingFlash.color;
-            color.a = 0.55f * Mathf.Clamp01(_flashTimer / (FlashDuration * 0.35f));
+            color.a = _swingBaseAlpha * Mathf.Clamp01(_flashTimer / (FlashDuration * 0.35f));
             _swingFlash.color = color;
         }
     }

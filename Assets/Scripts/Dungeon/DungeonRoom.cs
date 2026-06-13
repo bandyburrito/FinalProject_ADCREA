@@ -42,6 +42,11 @@ namespace ADCREA.Dungeon
         // which enforces the Isaac rule: once you walk into a fight, you finish it.
         private readonly List<EnemyHealth> _livingEnemies = new List<EnemyHealth>();
 
+        // A room that never held a fight (empty corridor) must not pay out a clear reward,
+        // and a cleared room must report itself exactly once.
+        private bool _hadEnemies;
+        private bool _clearReported;
+
         public IReadOnlyDictionary<Vector2Int, Door> Doors
         {
             get { return _doors; }
@@ -55,6 +60,7 @@ namespace ADCREA.Dungeon
         public void RegisterEnemy(EnemyHealth enemy)
         {
             _livingEnemies.Add(enemy);
+            _hadEnemies = true;
         }
 
         public void NotifyEnemyDeath(EnemyHealth enemy)
@@ -62,11 +68,24 @@ namespace ADCREA.Dungeon
             _livingEnemies.Remove(enemy);
             RefreshDoorLocks();
 
-            // The boss falling drives the run flow (second weapon choice or victory) -
-            // the room reports it because only it knows when its last enemy died.
-            if (IsCleared && Type == RoomType.Boss && GameSession.Instance != null)
+            if (!IsCleared || GameSession.Instance == null || _clearReported)
             {
+                return;
+            }
+
+            // A room reports its clear once, when the last enemy of a real fight dies.
+            _clearReported = true;
+
+            if (Type == RoomType.Boss)
+            {
+                // The boss falling drives the run flow: a guaranteed reward plus the
+                // weapon choice, then the next floor.
                 GameSession.Instance.HandleBossDefeated();
+            }
+            else if (_hadEnemies)
+            {
+                // A normal fight room runs the per-room upgrade lottery.
+                GameSession.Instance.HandleRoomCleared();
             }
         }
 

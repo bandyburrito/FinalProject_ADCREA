@@ -23,6 +23,16 @@ namespace ADCREA.Weapons
         private readonly LinkedList<WeaponInstance> _weapons = new LinkedList<WeaponInstance>();
         private LinkedListNode<WeaponInstance> _equipped;
 
+        // Upgrades belong to the player, not to one weapon: this single shared object is
+        // handed to every WeaponInstance, so a buff applies across the whole arsenal.
+        private readonly PlayerWeaponStats _stats = new PlayerWeaponStats();
+
+        /// <summary>The player's run-wide weapon upgrades, applied to every weapon held.</summary>
+        public PlayerWeaponStats Stats
+        {
+            get { return _stats; }
+        }
+
         public LinkedListNode<WeaponInstance> FirstNode
         {
             get { return _weapons.First; }
@@ -95,14 +105,14 @@ namespace ADCREA.Weapons
                 return;
             }
 
-            _equipped = _weapons.AddLast(new WeaponInstance(definition));
+            _equipped = _weapons.AddLast(new WeaponInstance(definition, _stats));
             Debug.Log("Weapon acquired: " + definition.DisplayName);
         }
 
         /// <summary>
-        /// Drops the currently equipped weapon - upgrades included, they live on the
-        /// instance - and puts the new weapon in its place in the LinkedList. Used by
-        /// the post-boss choice once both slots are full.
+        /// Drops the currently equipped weapon and puts the new one in its place in the
+        /// LinkedList. The run's upgrades carry over untouched - they belong to the player,
+        /// not the weapon. Used by the post-boss choice once both slots are full.
         /// </summary>
         public void ReplaceEquipped(WeaponDefinition definition)
         {
@@ -117,18 +127,19 @@ namespace ADCREA.Weapons
             }
 
             string dropped = _equipped.Value.Definition.DisplayName;
-            _equipped.Value = new WeaponInstance(definition);
+            _equipped.Value = new WeaponInstance(definition, _stats);
             Debug.Log("Dropped " + dropped + " for " + definition.DisplayName);
         }
 
         /// <summary>
-        /// Roguelike death rule: the next run starts with nothing - the opening weapon
-        /// choice fills the inventory again.
+        /// Roguelike death rule: the next run starts with nothing - no weapons and no
+        /// upgrades. The opening weapon choice fills the inventory again.
         /// </summary>
         public void ResetToEmpty()
         {
             _weapons.Clear();
             _equipped = null;
+            _stats.Reset();
         }
 
         private void CycleNext()

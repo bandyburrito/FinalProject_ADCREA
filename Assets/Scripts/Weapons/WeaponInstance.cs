@@ -3,29 +3,26 @@ using UnityEngine;
 namespace ADCREA.Weapons
 {
     /// <summary>
-    /// One owned copy of a weapon: the immutable definition plus everything a run can
-    /// change about it - upgrade multipliers and the ammunition left in the magazine.
+    /// One owned copy of a weapon: the immutable definition plus the only thing that is
+    /// genuinely per-weapon during a run - the ammunition left in the magazine.
     ///
-    /// Upgrade rules (per project spec): percentage stats stack multiplicatively
-    /// (2 dmg, +50%, +50% = 2 -> 3 -> 4.5), crit chance stacks additively
-    /// (5%, +5%, +5% = 15%), and magazine size never changes.
+    /// Upgrades are NOT stored here. They live on the player's shared
+    /// <see cref="PlayerWeaponStats"/>, which every instance reads through, so a buff picked
+    /// up with one gun improves every weapon the player carries now or finds later.
     /// </summary>
     public class WeaponInstance
     {
         public readonly WeaponDefinition Definition;
 
-        public float DamageMultiplier = 1f;
-        public float AttackSpeedMultiplier = 1f;
-        public float ReloadTimeMultiplier = 1f;
-        public float ProjectileVelocityMultiplier = 1f;
-        public float InaccuracyMultiplier = 1f;
-        public float CritChanceBonus;
+        // The player's run-wide upgrades. Shared across every weapon, never owned by one.
+        private readonly PlayerWeaponStats _stats;
 
         public int AmmoInMagazine;
 
-        public WeaponInstance(WeaponDefinition definition)
+        public WeaponInstance(WeaponDefinition definition, PlayerWeaponStats stats)
         {
             Definition = definition;
+            _stats = stats;
             AmmoInMagazine = definition.MagazineSize;
         }
 
@@ -34,70 +31,51 @@ namespace ADCREA.Weapons
             get { return Definition.Mode == FireMode.Melee; }
         }
 
+        /// <summary>The crit damage bonus the player has accrued; read by the controller.</summary>
+        public float CritDamageBonus
+        {
+            get { return _stats.CritDamageBonus; }
+        }
+
         public float EffectiveDamage()
         {
-            return Definition.Damage * DamageMultiplier;
+            return Definition.Damage * _stats.DamageMultiplier;
         }
 
         public float EffectiveAttackSpeed()
         {
-            return Definition.AttackSpeed * AttackSpeedMultiplier;
+            return Definition.AttackSpeed * _stats.AttackSpeedMultiplier;
         }
 
         public float EffectiveReloadTime()
         {
-            return Definition.ReloadTime * ReloadTimeMultiplier;
+            return Definition.ReloadTime * _stats.ReloadTimeMultiplier;
         }
 
         public float EffectiveProjectileVelocity()
         {
-            return Definition.ProjectileVelocity * ProjectileVelocityMultiplier;
+            return Definition.ProjectileVelocity * _stats.ProjectileVelocityMultiplier;
         }
 
         public float EffectiveInaccuracy()
         {
-            return Definition.InaccuracyDegrees * InaccuracyMultiplier;
+            return Definition.InaccuracyDegrees * _stats.InaccuracyMultiplier;
+        }
+
+        /// <summary>
+        /// Seconds for the bloom cone to settle back to perfect accuracy after a shot.
+        /// Attack speed upgrades shorten it: on the uncapped revolver, where the per-shot
+        /// rate is bounded by clicking rather than by attack speed, this faster sight
+        /// settle is the only thing attack speed buys.
+        /// </summary>
+        public float EffectiveBloomRecoverySeconds()
+        {
+            return Definition.BloomRecoverySeconds / Mathf.Max(0.01f, _stats.AttackSpeedMultiplier);
         }
 
         public float EffectiveCritChance()
         {
-            return Definition.CritChance + CritChanceBonus;
-        }
-
-        /// <summary>Multiplies onto the current multiplier so repeated upgrades compound.</summary>
-        public void ApplyDamagePercentUpgrade(float percent)
-        {
-            DamageMultiplier = DamageMultiplier * (1f + percent / 100f);
-            Debug.Log(Definition.DisplayName + " damage upgraded to " + EffectiveDamage().ToString("0.##"));
-        }
-
-        public void ApplyCritChanceUpgrade(float amount)
-        {
-            CritChanceBonus += amount;
-            Debug.Log(Definition.DisplayName + " crit chance raised to "
-                + Mathf.RoundToInt(EffectiveCritChance() * 100f) + "%");
-        }
-
-        public void ApplyAttackSpeedPercentUpgrade(float percent)
-        {
-            AttackSpeedMultiplier = AttackSpeedMultiplier * (1f + percent / 100f);
-        }
-
-        /// <summary>Negative percentages shorten the reload - the useful direction.</summary>
-        public void ApplyReloadTimePercentUpgrade(float percent)
-        {
-            ReloadTimeMultiplier = ReloadTimeMultiplier * (1f + percent / 100f);
-        }
-
-        public void ApplyShotSpeedPercentUpgrade(float percent)
-        {
-            ProjectileVelocityMultiplier = ProjectileVelocityMultiplier * (1f + percent / 100f);
-        }
-
-        /// <summary>Negative percentages tighten the spread - the useful direction.</summary>
-        public void ApplyInaccuracyPercentUpgrade(float percent)
-        {
-            InaccuracyMultiplier = InaccuracyMultiplier * (1f + percent / 100f);
+            return Definition.CritChance + _stats.CritChanceBonus;
         }
     }
 }

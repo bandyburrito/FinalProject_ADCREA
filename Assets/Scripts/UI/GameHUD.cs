@@ -105,9 +105,19 @@ namespace ADCREA.UI
                 }
                 GUI.DrawTexture(slot, Texture2D.whiteTexture);
             }
+
+            // Temporary hearts (Safety) sit past the real bar in cyan: a buffer that is
+            // spent before HP and never heals back.
+            for (int i = 0; i < _health.TempHealth; i++)
+            {
+                var slot = new Rect(56f + (_health.maxHealth + i) * (size + gap), 12f, size, size);
+                GUI.color = new Color(0.4f, 0.85f, 0.95f);
+                GUI.DrawTexture(slot, Texture2D.whiteTexture);
+            }
             GUI.color = Color.white;
 
-            float afterHearts = 56f + _health.maxHealth * (size + gap) + 14f;
+            int heartSlots = _health.maxHealth + _health.TempHealth;
+            float afterHearts = 56f + heartSlots * (size + gap) + 14f;
             if (GameSession.Instance != null)
             {
                 GUI.Label(new Rect(afterHearts, 16f, 120f, 24f),

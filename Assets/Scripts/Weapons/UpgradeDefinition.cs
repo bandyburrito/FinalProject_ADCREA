@@ -1,25 +1,120 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace ADCREA.Weapons
 {
-    /// <summary>The rewards treasure rooms and sacrifice altars can hand out.</summary>
+    /// <summary>
+    /// Every upgrade the run can hand out. The tier an upgrade belongs to is data on its
+    /// <see cref="UpgradeData"/> entry and is deliberately NOT shown to the player - only
+    /// the name and the effect text reach the choice cards.
+    /// </summary>
     public enum UpgradeKind
     {
-        HealOneHeart,
-        MaxHealthPlusOne,
-        BloodPactHeal,            // Altar exclusive: heal 2 - net +1 after the altar's blood price.
-        DamagePlus25Percent,
-        CritPlus20Percent,
-        AttackSpeedPlus20Percent,
-        ReloadTimeMinus20Percent,
-        ShotSpeedPlus30Percent,
-        SteadyAimPlus30Percent,
+        // ---- Tier 3 (weakest, most common) ----
+        DeadlyBullets,
+        FastChambers,
+        LuckyShots,
+        Sighted,
+        ModernUpgrades,
+        FireAtWill,
+        Fishing,
+        MakingItCount,
+        HeavyBullets,
+        Spree,
+        Ardor,
+        LightningRounds,
+        Mend,
+        Quickness,
+        Precise,
+
+        // ---- Tier 2 ----
+        DeadlierBullets,
+        FasterChambers,
+        LuckierShots,
+        Gambler,
+        Scoped,
+        SupersonicRounds,
+        BetterStronger,
+        Bloodshot,
+        Brutality,
+        Medical,
+        BloodPact,
+        Speedy,
+        Luck,
+        StandYourGround,
+        JackOfAllTrades,
+
+        // ---- Tier 1 (strongest, rarest) ----
+        DeadliestBullets,
+        FastestChambers,
+        LuckiestShots,
+        Headshots,
+        Pinpoint,
+        Run,
+        Blessing,
+        Vigor,
+        DiamondBullets,
+        SlowRoll,
+        GlassCannon,
+        Safety,
+        Assassin,
+        LetErRip,
+        Sevens,
+    }
+
+    /// <summary>The stat one upgrade effect touches. Percentages are whole numbers (7 = 7%).</summary>
+    public enum UpgradeStat
+    {
+        Damage,          // % multiplier on weapon damage.
+        AttackSpeed,     // % multiplier on attacks per second.
+        CritChance,      // Flat % added to crit chance.
+        Accuracy,        // % more accurate (tightens the spread cone); negative loosens it.
+        ReloadTime,      // % multiplier on reload time (negative = faster).
+        BulletVelocity,  // % multiplier on projectile speed.
+        CritDamage,      // % added to the crit damage bonus.
+        MoveSpeed,       // % multiplier on the player's move speed.
+        HealHp,          // Restore N hearts.
+        HealFull,        // Restore to max HP (value ignored).
+        MaxHp,           // Change max HP by N (can be negative).
+        SetMaxHp,        // Set max HP to N outright (Glass Cannon).
+        TempHp,          // Add N temporary hearts (lost permanently when spent).
+    }
+
+    /// <summary>One stat change inside an upgrade. Upgrades bundle several of these.</summary>
+    public struct UpgradeEffect
+    {
+        public readonly UpgradeStat Stat;
+        public readonly float Value;
+
+        public UpgradeEffect(UpgradeStat stat, float value)
+        {
+            Stat = stat;
+            Value = value;
+        }
+    }
+
+    /// <summary>Full definition of one upgrade: presentation, tier and the effects it applies.</summary>
+    public class UpgradeData
+    {
+        public UpgradeKind Kind;
+        public string Name;
+        public string Description;
+        public int Tier;            // 1 = strongest/rarest, 3 = weakest/most common.
+        public Color Tint;
+        public UpgradeEffect[] Effects;
+
+        // Heal cards only make sense, and only appear, when the player is below max HP.
+        public bool HealOnlyIfNotFull;
+
+        // Luck! and 777 carry no plain stat effects - GameSession handles them specially.
+        public bool IsLuck;
+        public bool IsJackpot;
     }
 
     /// <summary>
-    /// Display data for one upgrade card plus the two reward pools. Treasure rooms deal
-    /// three random distinct cards from their pool; the sacrifice altar gambles one roll
-    /// from its own pool (which is where the blood pact hides - paying 1 HP to heal 2).
+    /// Display wrapper handed to <see cref="ADCREA.UI.ChoiceScreen"/>. Carries exactly what a
+    /// card shows - never the tier. Also the home of the tiered upgrade database and the
+    /// roll/offer helpers the run flow draws from.
     /// </summary>
     public class UpgradeOption
     {
@@ -36,96 +131,281 @@ namespace ADCREA.Weapons
             Tint = tint;
         }
 
-        private static readonly UpgradeKind[] TreasurePool =
-        {
-            UpgradeKind.HealOneHeart,
-            UpgradeKind.MaxHealthPlusOne,
-            UpgradeKind.DamagePlus25Percent,
-            UpgradeKind.CritPlus20Percent,
-            UpgradeKind.AttackSpeedPlus20Percent,
-            UpgradeKind.ReloadTimeMinus20Percent,
-            UpgradeKind.ShotSpeedPlus30Percent,
-            UpgradeKind.SteadyAimPlus30Percent,
-        };
+        // ------------------------------------------------------------------ database
 
-        private static readonly UpgradeKind[] AltarPool =
+        // Palette reused by effect family so cards read at a glance without a per-card art
+        // pass. Declared BEFORE the database below: static fields initialize in textual
+        // order, and BuildDatabase reads these colours.
+        private static readonly Color Dmg = new Color(0.95f, 0.6f, 0.25f);
+        private static readonly Color Spd = new Color(0.95f, 0.85f, 0.4f);
+        private static readonly Color Crit = new Color(0.45f, 0.85f, 0.4f);
+        private static readonly Color Aim = new Color(0.6f, 0.85f, 0.9f);
+        private static readonly Color Tech = new Color(0.5f, 0.7f, 0.9f);
+        private static readonly Color Gore = new Color(0.9f, 0.4f, 0.3f);
+        private static readonly Color Foot = new Color(0.4f, 0.85f, 0.7f);
+        private static readonly Color Life = new Color(0.9f, 0.3f, 0.35f);
+        private static readonly Color Gold = new Color(1f, 0.84f, 0.25f);
+
+        private static readonly Dictionary<UpgradeKind, UpgradeData> ByKind = BuildDatabase();
+        private static readonly List<UpgradeKind> Tier1 = CollectTier(1);
+        private static readonly List<UpgradeKind> Tier2 = CollectTier(2);
+        private static readonly List<UpgradeKind> Tier3 = CollectTier(3);
+
+        private static UpgradeEffect E(UpgradeStat stat, float value)
         {
-            UpgradeKind.BloodPactHeal,
-            UpgradeKind.DamagePlus25Percent,
-            UpgradeKind.CritPlus20Percent,
-            UpgradeKind.AttackSpeedPlus20Percent,
-            UpgradeKind.ReloadTimeMinus20Percent,
-            UpgradeKind.ShotSpeedPlus30Percent,
-            UpgradeKind.SteadyAimPlus30Percent,
-        };
+            return new UpgradeEffect(stat, value);
+        }
+
+        private static Dictionary<UpgradeKind, UpgradeData> BuildDatabase()
+        {
+            var db = new Dictionary<UpgradeKind, UpgradeData>();
+
+            // ---------------------------------------------------------- Tier 3
+            Add(db, UpgradeKind.DeadlyBullets, "Deadly Bullets", "+7% damage", 3, Dmg,
+                new[] { E(UpgradeStat.Damage, 7f) });
+            Add(db, UpgradeKind.FastChambers, "Fast Chambers", "+7% attack speed", 3, Spd,
+                new[] { E(UpgradeStat.AttackSpeed, 7f) });
+            Add(db, UpgradeKind.LuckyShots, "Lucky Shots", "+7% crit chance", 3, Crit,
+                new[] { E(UpgradeStat.CritChance, 7f) });
+            Add(db, UpgradeKind.Sighted, "Sighted", "+10% accuracy", 3, Aim,
+                new[] { E(UpgradeStat.Accuracy, 10f) });
+            Add(db, UpgradeKind.ModernUpgrades, "Modern Upgrades", "-10% reload time, +10% bullet velocity", 3, Tech,
+                new[] { E(UpgradeStat.ReloadTime, -10f), E(UpgradeStat.BulletVelocity, 10f) });
+            Add(db, UpgradeKind.FireAtWill, "Fire at Will", "+10% damage, -15% accuracy", 3, Dmg,
+                new[] { E(UpgradeStat.Damage, 10f), E(UpgradeStat.Accuracy, -15f) });
+            Add(db, UpgradeKind.Fishing, "Fishing", "-5% damage, +12% crit chance", 3, Crit,
+                new[] { E(UpgradeStat.Damage, -5f), E(UpgradeStat.CritChance, 12f) });
+            Add(db, UpgradeKind.MakingItCount, "Making it Count", "+10% damage, +15% reload time", 3, Dmg,
+                new[] { E(UpgradeStat.Damage, 10f), E(UpgradeStat.ReloadTime, 15f) });
+            Add(db, UpgradeKind.HeavyBullets, "Heavy Bullets", "+5% damage, +5% crit chance, -10% attack speed", 3, Dmg,
+                new[] { E(UpgradeStat.Damage, 5f), E(UpgradeStat.CritChance, 5f), E(UpgradeStat.AttackSpeed, -10f) });
+            Add(db, UpgradeKind.Spree, "Spree", "+10% attack speed, -15% accuracy", 3, Spd,
+                new[] { E(UpgradeStat.AttackSpeed, 10f), E(UpgradeStat.Accuracy, -15f) });
+            Add(db, UpgradeKind.Ardor, "Ardor", "+4% attack speed, +4% crit chance", 3, Spd,
+                new[] { E(UpgradeStat.AttackSpeed, 4f), E(UpgradeStat.CritChance, 4f) });
+            Add(db, UpgradeKind.LightningRounds, "Lightning Rounds", "+5% attack speed, +5% bullet velocity", 3, Tech,
+                new[] { E(UpgradeStat.AttackSpeed, 5f), E(UpgradeStat.BulletVelocity, 5f) });
+            AddHeal(db, UpgradeKind.Mend, "Mend", "Heal 1 HP", 3, Life,
+                new[] { E(UpgradeStat.HealHp, 1f) });
+            Add(db, UpgradeKind.Quickness, "Quickness", "+5% movement speed", 3, Foot,
+                new[] { E(UpgradeStat.MoveSpeed, 5f) });
+            Add(db, UpgradeKind.Precise, "Precise", "+5% crit chance, +5% accuracy", 3, Aim,
+                new[] { E(UpgradeStat.CritChance, 5f), E(UpgradeStat.Accuracy, 5f) });
+
+            // ---------------------------------------------------------- Tier 2
+            Add(db, UpgradeKind.DeadlierBullets, "Deadlier Bullets", "+15% damage", 2, Dmg,
+                new[] { E(UpgradeStat.Damage, 15f) });
+            Add(db, UpgradeKind.FasterChambers, "Faster Chambers", "+15% attack speed", 2, Spd,
+                new[] { E(UpgradeStat.AttackSpeed, 15f) });
+            Add(db, UpgradeKind.LuckierShots, "Luckier Shots", "+15% crit chance", 2, Crit,
+                new[] { E(UpgradeStat.CritChance, 15f) });
+            Add(db, UpgradeKind.Gambler, "Gambler", "-10% damage, +25% crit chance", 2, Crit,
+                new[] { E(UpgradeStat.Damage, -10f), E(UpgradeStat.CritChance, 25f) });
+            Add(db, UpgradeKind.Scoped, "Scoped", "+30% accuracy", 2, Aim,
+                new[] { E(UpgradeStat.Accuracy, 30f) });
+            Add(db, UpgradeKind.SupersonicRounds, "Supersonic Rounds", "+5% damage, +100% bullet velocity", 2, Tech,
+                new[] { E(UpgradeStat.Damage, 5f), E(UpgradeStat.BulletVelocity, 100f) });
+            Add(db, UpgradeKind.BetterStronger, "Better, Stronger", "+8% damage, +8% crit chance", 2, Dmg,
+                new[] { E(UpgradeStat.Damage, 8f), E(UpgradeStat.CritChance, 8f) });
+            Add(db, UpgradeKind.Bloodshot, "Bloodshot", "-15% damage, +40% attack speed, -20% reload time", 2, Spd,
+                new[] { E(UpgradeStat.Damage, -15f), E(UpgradeStat.AttackSpeed, 40f), E(UpgradeStat.ReloadTime, -20f) });
+            Add(db, UpgradeKind.Brutality, "Brutality", "+10% crit damage", 2, Gore,
+                new[] { E(UpgradeStat.CritDamage, 10f) });
+            AddHeal(db, UpgradeKind.Medical, "Medical", "Heal 2 HP", 2, Life,
+                new[] { E(UpgradeStat.HealHp, 2f) });
+            Add(db, UpgradeKind.BloodPact, "Blood Pact", "+10% attack speed, +50% crit chance, -2 max HP", 2, Gore,
+                new[] { E(UpgradeStat.AttackSpeed, 10f), E(UpgradeStat.CritChance, 50f), E(UpgradeStat.MaxHp, -2f) });
+            Add(db, UpgradeKind.Speedy, "Speedy", "+5% movement speed, +8% attack speed", 2, Foot,
+                new[] { E(UpgradeStat.MoveSpeed, 5f), E(UpgradeStat.AttackSpeed, 8f) });
+            AddLuck(db);
+            Add(db, UpgradeKind.StandYourGround, "Stand Your Ground", "+30% damage, -10% movement speed", 2, Dmg,
+                new[] { E(UpgradeStat.Damage, 30f), E(UpgradeStat.MoveSpeed, -10f) });
+            Add(db, UpgradeKind.JackOfAllTrades, "Jack of all Trades",
+                "+3% damage, +3% attack speed, +3% crit chance, +5% accuracy, +10% bullet velocity, -3% reload time, +1% crit damage, +2% movement speed",
+                2, Gold,
+                new[]
+                {
+                    E(UpgradeStat.Damage, 3f), E(UpgradeStat.AttackSpeed, 3f), E(UpgradeStat.CritChance, 3f),
+                    E(UpgradeStat.Accuracy, 5f), E(UpgradeStat.BulletVelocity, 10f), E(UpgradeStat.ReloadTime, -3f),
+                    E(UpgradeStat.CritDamage, 1f), E(UpgradeStat.MoveSpeed, 2f),
+                });
+
+            // ---------------------------------------------------------- Tier 1
+            Add(db, UpgradeKind.DeadliestBullets, "Deadliest Bullets", "+30% damage", 1, Dmg,
+                new[] { E(UpgradeStat.Damage, 30f) });
+            Add(db, UpgradeKind.FastestChambers, "Fastest Chambers", "+30% attack speed", 1, Spd,
+                new[] { E(UpgradeStat.AttackSpeed, 30f) });
+            Add(db, UpgradeKind.LuckiestShots, "Luckiest Shots", "+30% crit chance", 1, Crit,
+                new[] { E(UpgradeStat.CritChance, 30f) });
+            Add(db, UpgradeKind.Headshots, "Headshots", "+15% crit chance, +10% crit damage", 1, Gore,
+                new[] { E(UpgradeStat.CritChance, 15f), E(UpgradeStat.CritDamage, 10f) });
+            Add(db, UpgradeKind.Pinpoint, "Pinpoint", "+20% crit chance, +20% accuracy", 1, Aim,
+                new[] { E(UpgradeStat.CritChance, 20f), E(UpgradeStat.Accuracy, 20f) });
+            Add(db, UpgradeKind.Run, "RUN!", "-10% damage, +20% movement speed", 1, Foot,
+                new[] { E(UpgradeStat.Damage, -10f), E(UpgradeStat.MoveSpeed, 20f) });
+            AddHeal(db, UpgradeKind.Blessing, "Blessing", "Heal to full HP", 1, Life,
+                new[] { E(UpgradeStat.HealFull, 0f) });
+            Add(db, UpgradeKind.Vigor, "Vigor", "+1 max HP", 1, Life,
+                new[] { E(UpgradeStat.MaxHp, 1f) });
+            Add(db, UpgradeKind.DiamondBullets, "Diamond Bullets", "+15% damage, +15% attack speed", 1, Dmg,
+                new[] { E(UpgradeStat.Damage, 15f), E(UpgradeStat.AttackSpeed, 15f) });
+            Add(db, UpgradeKind.SlowRoll, "Slow Roll", "-20% attack speed, +60% crit chance", 1, Crit,
+                new[] { E(UpgradeStat.AttackSpeed, -20f), E(UpgradeStat.CritChance, 60f) });
+            Add(db, UpgradeKind.GlassCannon, "Glass Cannon", "Set max HP to 1, +75% damage, +75% crit chance", 1, Gore,
+                new[] { E(UpgradeStat.SetMaxHp, 1f), E(UpgradeStat.Damage, 75f), E(UpgradeStat.CritChance, 75f) });
+            Add(db, UpgradeKind.Safety, "Safety", "+10% movement speed, +3 temporary HP", 1, Foot,
+                new[] { E(UpgradeStat.MoveSpeed, 10f), E(UpgradeStat.TempHp, 3f) });
+            Add(db, UpgradeKind.Assassin, "Assassin", "+20% crit damage", 1, Gore,
+                new[] { E(UpgradeStat.CritDamage, 20f) });
+            Add(db, UpgradeKind.LetErRip, "Let 'er Rip", "+50% attack speed, -50% accuracy, -40% reload time", 1, Spd,
+                new[] { E(UpgradeStat.AttackSpeed, 50f), E(UpgradeStat.Accuracy, -50f), E(UpgradeStat.ReloadTime, -40f) });
+            AddJackpot(db);
+
+            return db;
+        }
+
+        private static void Add(Dictionary<UpgradeKind, UpgradeData> db, UpgradeKind kind, string name,
+            string description, int tier, Color tint, UpgradeEffect[] effects)
+        {
+            var data = new UpgradeData();
+            data.Kind = kind;
+            data.Name = name;
+            data.Description = description;
+            data.Tier = tier;
+            data.Tint = tint;
+            data.Effects = effects;
+            db[kind] = data;
+        }
+
+        private static void AddHeal(Dictionary<UpgradeKind, UpgradeData> db, UpgradeKind kind, string name,
+            string description, int tier, Color tint, UpgradeEffect[] effects)
+        {
+            Add(db, kind, name, description, tier, tint, effects);
+            db[kind].HealOnlyIfNotFull = true;
+        }
+
+        private static void AddLuck(Dictionary<UpgradeKind, UpgradeData> db)
+        {
+            // Deliberately vague: the player is never told what Luck! actually does.
+            Add(db, UpgradeKind.Luck, "Luck!", "Fortune favours the bold.", 2, Gold, new UpgradeEffect[0]);
+            db[UpgradeKind.Luck].IsLuck = true;
+        }
+
+        private static void AddJackpot(Dictionary<UpgradeKind, UpgradeData> db)
+        {
+            Add(db, UpgradeKind.Sevens, "777", "Jackpot - a random powerful blessing, twice over.", 1, Gold,
+                new UpgradeEffect[0]);
+            db[UpgradeKind.Sevens].IsJackpot = true;
+        }
+
+        private static List<UpgradeKind> CollectTier(int tier)
+        {
+            var list = new List<UpgradeKind>();
+            foreach (KeyValuePair<UpgradeKind, UpgradeData> entry in ByKind)
+            {
+                if (entry.Value.Tier == tier)
+                {
+                    list.Add(entry.Key);
+                }
+            }
+            return list;
+        }
+
+        // ------------------------------------------------------------------ queries
+
+        public static UpgradeData Data(UpgradeKind kind)
+        {
+            UpgradeData data;
+            ByKind.TryGetValue(kind, out data);
+            return data;
+        }
 
         public static UpgradeOption Describe(UpgradeKind kind)
         {
-            switch (kind)
+            UpgradeData data = Data(kind);
+            if (data == null)
             {
-                case UpgradeKind.HealOneHeart:
-                    return new UpgradeOption(kind, "Patch Up",
-                        "Restore 1 HP",
-                        new Color(0.9f, 0.25f, 0.3f));
-                case UpgradeKind.MaxHealthPlusOne:
-                    return new UpgradeOption(kind, "Iron Heart",
-                        "+1 maximum HP, filled on pickup",
-                        new Color(0.85f, 0.4f, 0.45f));
-                case UpgradeKind.BloodPactHeal:
-                    return new UpgradeOption(kind, "Blood Pact",
-                        "Heal 2 HP (the altar already took its 1)",
-                        new Color(0.75f, 0.15f, 0.2f));
-                case UpgradeKind.DamagePlus25Percent:
-                    return new UpgradeOption(kind, "Sharpened Rounds",
-                        "+25% damage on the current weapon (stacks multiplicatively)",
-                        new Color(0.95f, 0.6f, 0.25f));
-                case UpgradeKind.CritPlus20Percent:
-                    return new UpgradeOption(kind, "Lucky Charm",
-                        "+20% crit chance on the current weapon (over 100% rolls double crits)",
-                        new Color(0.45f, 0.8f, 0.4f));
-                case UpgradeKind.AttackSpeedPlus20Percent:
-                    return new UpgradeOption(kind, "Trigger Discipline",
-                        "+20% attack speed on the current weapon",
-                        new Color(0.95f, 0.85f, 0.4f));
-                case UpgradeKind.ReloadTimeMinus20Percent:
-                    return new UpgradeOption(kind, "Greased Magazine",
-                        "-20% reload time on the current weapon",
-                        new Color(0.5f, 0.7f, 0.9f));
-                case UpgradeKind.ShotSpeedPlus30Percent:
-                    return new UpgradeOption(kind, "Heavy Powder",
-                        "+30% projectile speed on the current weapon",
-                        new Color(0.7f, 0.7f, 0.75f));
-                default:
-                    return new UpgradeOption(UpgradeKind.SteadyAimPlus30Percent, "Steady Aim",
-                        "-30% spread on the current weapon",
-                        new Color(0.6f, 0.85f, 0.9f));
+                return new UpgradeOption(kind, kind.ToString(), "", Color.white);
             }
+            return new UpgradeOption(kind, data.Name, data.Description, data.Tint);
         }
 
-        /// <summary>Three distinct random cards from the treasure pool, Fisher-Yates picked.</summary>
-        public static UpgradeOption[] TreasureOffer(System.Random rng)
+        private static List<UpgradeKind> TierList(int tier)
         {
-            var pool = new UpgradeKind[TreasurePool.Length];
-            TreasurePool.CopyTo(pool, 0);
-            for (int i = pool.Length - 1; i > 0; i--)
+            if (tier <= 1)
             {
-                int j = rng.Next(i + 1);
-                UpgradeKind swap = pool[i];
-                pool[i] = pool[j];
-                pool[j] = swap;
+                return Tier1;
+            }
+            if (tier == 2)
+            {
+                return Tier2;
+            }
+            return Tier3;
+        }
+
+        /// <summary>
+        /// Three distinct cards from one tier. Heal cards drop out of the pool when the
+        /// player is already at full health, so a useless card never wastes a slot.
+        /// </summary>
+        public static UpgradeOption[] OfferFromTier(int tier, System.Random rng, bool playerAtFullHealth)
+        {
+            var pool = new List<UpgradeKind>();
+            List<UpgradeKind> source = TierList(tier);
+            for (int i = 0; i < source.Count; i++)
+            {
+                if (playerAtFullHealth && Data(source[i]).HealOnlyIfNotFull)
+                {
+                    continue;
+                }
+                pool.Add(source[i]);
             }
 
-            var offer = new UpgradeOption[3];
-            for (int i = 0; i < 3; i++)
+            Shuffle(pool, rng);
+
+            int count = Mathf.Min(3, pool.Count);
+            var offer = new UpgradeOption[count];
+            for (int i = 0; i < count; i++)
             {
                 offer[i] = Describe(pool[i]);
             }
             return offer;
         }
 
+        /// <summary>One random applicable upgrade from a tier - used by 777 and the altar.</summary>
+        public static UpgradeKind RandomFromTier(int tier, System.Random rng, bool playerAtFullHealth)
+        {
+            var pool = new List<UpgradeKind>();
+            List<UpgradeKind> source = TierList(tier);
+            for (int i = 0; i < source.Count; i++)
+            {
+                if (playerAtFullHealth && Data(source[i]).HealOnlyIfNotFull)
+                {
+                    continue;
+                }
+                pool.Add(source[i]);
+            }
+            return pool[rng.Next(pool.Count)];
+        }
+
+        /// <summary>
+        /// The sacrifice altar gambles a single reward. It rolls the treasure-style tier
+        /// odds (no Tier 3): 75% Tier 2, 25% Tier 1.
+        /// </summary>
         public static UpgradeKind RollAltar(System.Random rng)
         {
-            return AltarPool[rng.Next(AltarPool.Length)];
+            int tier = rng.NextDouble() < 0.25 ? 1 : 2;
+            return RandomFromTier(tier, rng, false);
+        }
+
+        private static void Shuffle(List<UpgradeKind> list, System.Random rng)
+        {
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = rng.Next(i + 1);
+                UpgradeKind swap = list[i];
+                list[i] = list[j];
+                list[j] = swap;
+            }
         }
     }
 }

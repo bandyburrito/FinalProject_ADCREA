@@ -18,9 +18,18 @@ namespace ADCREA.Player
         public int CurrentHealth { get; private set; }
         public int DeathCount { get; private set; }
 
+        // Temporary hearts (Safety): absorbed before real HP and never refilled by heals -
+        // once spent they are gone for the rest of the run.
+        public int TempHealth { get; private set; }
+
         private float _invulnerableTimer;
         private SpriteRenderer _sprite;
         private int _baseMaxHealth;
+
+        public bool IsAtFullHealth
+        {
+            get { return CurrentHealth >= maxHealth; }
+        }
 
         public bool IsInvulnerable
         {
@@ -39,12 +48,51 @@ namespace ADCREA.Player
         /// <summary>Run-scoped max-HP upgrade: the new heart arrives filled.</summary>
         public void IncreaseMaxHealth(int amount)
         {
+            ChangeMaxHealth(amount);
+        }
+
+        /// <summary>
+        /// Shifts max HP by any amount. Gained hearts arrive filled; lost hearts (Blood
+        /// Pact) clamp current HP down with them. Max HP never drops below 1.
+        /// </summary>
+        public void ChangeMaxHealth(int delta)
+        {
+            if (delta == 0)
+            {
+                return;
+            }
+            maxHealth = Mathf.Max(1, maxHealth + delta);
+            if (delta > 0)
+            {
+                CurrentHealth = Mathf.Min(CurrentHealth + delta, maxHealth);
+            }
+            else
+            {
+                CurrentHealth = Mathf.Min(CurrentHealth, maxHealth);
+            }
+        }
+
+        /// <summary>Glass Cannon: collapse the heart bar to a single point of HP.</summary>
+        public void SetMaxHealthTo(int value)
+        {
+            maxHealth = Mathf.Max(1, value);
+            CurrentHealth = Mathf.Min(CurrentHealth, maxHealth);
+        }
+
+        /// <summary>Blessing: top the bar back up to full (temporary hearts are not refilled).</summary>
+        public void HealToFull()
+        {
+            CurrentHealth = maxHealth;
+        }
+
+        /// <summary>Safety: bonus hearts spent before real HP and never healed back.</summary>
+        public void AddTempHealth(int amount)
+        {
             if (amount <= 0)
             {
                 return;
             }
-            maxHealth += amount;
-            CurrentHealth = Mathf.Min(CurrentHealth + amount, maxHealth);
+            TempHealth += amount;
         }
 
         private void Update()
@@ -87,9 +135,24 @@ namespace ADCREA.Player
                 return false;
             }
 
-            CurrentHealth -= amount;
+            // Temporary hearts soak the blow first; only the overflow reaches real HP.
+            int remaining = amount;
+            if (TempHealth > 0)
+            {
+                int absorbed = Mathf.Min(TempHealth, remaining);
+                TempHealth -= absorbed;
+                remaining -= absorbed;
+            }
+            CurrentHealth -= remaining;
             _invulnerableTimer = invulnerabilitySeconds;
             Debug.Log("Player took " + amount + " damage, " + CurrentHealth + " HP left.");
+
+            // Lets the run flow notice "boss beaten without taking damage" for the better
+            // Tier 1 odds; the session decides whether the hit counts toward a boss fight.
+            if (GameSession.Instance != null)
+            {
+                GameSession.Instance.NotifyPlayerDamaged();
+            }
 
             if (CurrentHealth <= 0)
             {
@@ -132,6 +195,7 @@ namespace ADCREA.Player
         {
             maxHealth = _baseMaxHealth;
             CurrentHealth = maxHealth;
+            TempHealth = 0;
             _invulnerableTimer = 0f;
             RestoreSpriteAlpha();
         }
