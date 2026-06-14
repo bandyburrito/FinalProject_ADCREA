@@ -1,17 +1,20 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace ADCREA.Dungeon
 {
     /// <summary>
-    /// Square door marker sitting on the inner edge of a room wall.
+    /// Door marker sitting on the inner edge of a room wall.
     ///
     /// Travel works Isaac-style: generated rooms are physically separate islands with
     /// solid wall colliders, so a door does not punch a hole into the wall. Touching the
-    /// square teleports the player to the matching door of the neighbouring room while
+    /// marker teleports the player to the matching door of the neighbouring room while
     /// the camera glides over - exactly how room transitions read in the original game.
     ///
-    /// The square is tinted with the DESTINATION room's type colour, so the player can
-    /// see where a passage leads (gold = treasure, red = boss, ...) before committing.
+    /// The marker shows the door piece sliced for the DESTINATION room's type and this
+    /// wall's direction (red skull = boss, gold star = treasure, ...), so the player can
+    /// see where a passage leads before committing. If a piece is missing it falls back to
+    /// a plain square tinted with the destination's type colour.
     /// </summary>
     public class Door : MonoBehaviour
     {
@@ -22,6 +25,10 @@ namespace ADCREA.Dungeon
         private SpriteRenderer _renderer;
         private Color _openColor;
         private bool _locked;
+
+        // One Resources lookup per (type,direction) for the whole run. A missing piece is
+        // cached as null so the fallback square is used without hitting disk every door.
+        private static readonly Dictionary<string, Sprite> PieceCache = new Dictionary<string, Sprite>();
 
         /// <summary>
         /// Sealed doors go dark and refuse travel. The owning room locks all of its doors
@@ -60,7 +67,6 @@ namespace ADCREA.Dungeon
         {
             var doorObject = new GameObject("Door " + DirectionName(direction) + " to " + destination.TypeName());
             doorObject.transform.SetParent(owner.transform, false);
-            doorObject.transform.localPosition = LocalWallPosition(owner, direction);
 
             Door door = doorObject.AddComponent<Door>();
             door.Owner = owner;
@@ -68,49 +74,144 @@ namespace ADCREA.Dungeon
             door.Direction = direction;
 
             var renderer = doorObject.AddComponent<SpriteRenderer>();
-            renderer.sprite = RuntimeSprites.SolidSquare();
-            renderer.color = DungeonRoom.TypeColor(destination.Type);
-            // Above the room art but below actors, so characters walk over the door square.
+            // Above the room art but below actors, so characters walk over the door.
             renderer.sortingOrder = -10;
-            doorObject.transform.localScale = new Vector3(1.8f, 1.8f, 1f);
 
+            Sprite art = LoadDoorPiece(destination.Type, direction);
+            Vector2 triggerSize;
+            if (art != null)
+            {
+                // The spliced art already carries the destination's colour and emblem, so it
+                // shows at full brightness; locking just darkens it (see SetLocked).
+                renderer.sprite = art;
+                // Match the body art's pixels-per-unit so the piece keeps its drawn size, and
+                // sit it centred on the wall at the room's edge (see LocalWallPosition).
+                float scale = ArtScale(owner, art);
+                doorObject.transform.localScale = new Vector3(scale, scale, 1f);
+                doorObject.transform.localPosition = LocalWallPosition(owner, direction);
+                door._openColor = Color.white;
+                // Collider size is in local space, so divide out the art scale to keep the
+                // travel trigger a constant ~1.4 world units whatever the piece's size.
+                triggerSize = new Vector2(1.4f, 1.4f) / scale;
+            }
+            else
+            {
+                // Fallback when a piece is missing: the original destination-tinted square at
+                // the plain grid wall position.
+                renderer.sprite = RuntimeSprites.SolidSquare();
+                doorObject.transform.localScale = new Vector3(1.8f, 1.8f, 1f);
+                doorObject.transform.localPosition = LocalWallPosition(owner, direction);
+                door._openColor = DungeonRoom.TypeColor(destination.Type);
+                // Slightly smaller than the visible square (scale applies to the collider too),
+                // so brushing past the door's edge does not yank the player into another room.
+                triggerSize = new Vector2(0.7f, 0.7f);
+            }
+            renderer.color = door._openColor;
             door._renderer = renderer;
-            door._openColor = renderer.color;
 
             var trigger = doorObject.AddComponent<BoxCollider2D>();
             trigger.isTrigger = true;
-            // Slightly smaller than the visible square (scale applies to the collider too),
-            // so brushing past the door's edge does not yank the player into another room.
-            trigger.size = new Vector2(0.7f, 0.7f);
+            trigger.size = triggerSize;
 
             owner.RegisterDoor(direction, door);
             return door;
         }
 
         /// <summary>
-        /// Door positions hug the inner edge of each wall. The first walkable ring of the
-        /// current room art is one cell in from the grid border (the wall colliders cover
-        /// the outermost cells), hence the 0.5 / 1.5 cell offsets.
+        /// Door positions sit centred on each wall, on the exact edge of the room footprint,
+        /// so the marker reads as a doorway set into the wall instead of floating on the
+        /// floor. The room transform is the bottom-left corner of cell (0,0), so the
+        /// footprint spans [0, width] x [0, height] world units (24 x 16 here) and each edge
+        /// is one of those bounds. The wall ring straddles the edge, so a door dropped on it
+        /// lands inside the wall while staying at the inner face the player can still reach.
         /// </summary>
         private static Vector3 LocalWallPosition(DungeonRoom owner, Vector2Int direction)
         {
-            float cell = owner.Grid.cellSize;
-            float midX = owner.Grid.width * 0.5f * cell;
-            float midY = owner.Grid.height * 0.5f * cell;
+            float width = owner.Grid.width * owner.Grid.cellSize;    // 24 units
+            float height = owner.Grid.height * owner.Grid.cellSize;  // 16 units
+            float midX = width * 0.5f;
+            float midY = height * 0.5f;
 
+            // Per-side nudges off the bare footprint edge, so each piece centres on its
+            // wall's drawn doorway: sides pulled inwards, north/south lifted up.
             if (direction == Vector2Int.up)
             {
-                return new Vector3(midX, (owner.Grid.height - 0.5f) * cell, 0f);
+                return new Vector3(midX, height + 0.498f, 0f);
             }
             if (direction == Vector2Int.down)
             {
-                return new Vector3(midX, 1.5f * cell, 0f);
+                return new Vector3(midX, 1.12375f, 0f);
             }
             if (direction == Vector2Int.left)
             {
-                return new Vector3(1.5f * cell, midY, 0f);
+                return new Vector3(0.71875f, midY, 0f);
             }
-            return new Vector3((owner.Grid.width - 1.5f) * cell, midY, 0f);
+            return new Vector3(width - 0.71875f, midY, 0f);
+        }
+
+        /// <summary>
+        /// Picks the sliced door piece for a passage leading to <paramref name="destinationType"/>
+        /// from <paramref name="direction"/>, e.g. the red skull "boss-N" door. Returns null when
+        /// no matching art exists, letting the caller fall back to the plain tinted square.
+        /// </summary>
+        private static Sprite LoadDoorPiece(RoomType destinationType, Vector2Int direction)
+        {
+            string key = ArtTypeName(destinationType) + "-" + DirectionSuffix(direction);
+            Sprite piece;
+            if (PieceCache.TryGetValue(key, out piece))
+            {
+                return piece;
+            }
+            piece = Resources.Load<Sprite>("RoomDoors/" + key);
+            PieceCache[key] = piece;
+            return piece;
+        }
+
+        // The start room reads as a normal room, so doors leading to it reuse the normal art.
+        private static string ArtTypeName(RoomType type)
+        {
+            switch (type)
+            {
+                case RoomType.Boss:
+                    return "boss";
+                case RoomType.Treasure:
+                    return "treasure";
+                case RoomType.Sacrifice:
+                    return "sacrifice";
+                default:
+                    return "normal";
+            }
+        }
+
+        private static string DirectionSuffix(Vector2Int direction)
+        {
+            if (direction == Vector2Int.up)
+            {
+                return "N";
+            }
+            if (direction == Vector2Int.down)
+            {
+                return "S";
+            }
+            if (direction == Vector2Int.left)
+            {
+                return "W";
+            }
+            return "E";
+        }
+
+        /// <summary>
+        /// Scales a door piece so its pixels-per-unit matches the room body art, keeping it at
+        /// the size the artist drew it. Both are sliced at 16 PPU today, so this is normally 1.
+        /// </summary>
+        private static float ArtScale(DungeonRoom owner, Sprite art)
+        {
+            SpriteRenderer body = owner.GetComponent<SpriteRenderer>();
+            if (body == null || body.sprite == null || art.pixelsPerUnit <= 0f)
+            {
+                return 1f;
+            }
+            return body.sprite.pixelsPerUnit / art.pixelsPerUnit;
         }
 
         private static string DirectionName(Vector2Int direction)

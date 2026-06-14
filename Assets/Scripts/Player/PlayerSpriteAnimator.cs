@@ -8,9 +8,10 @@ namespace ADCREA.Player
 {
     /// <summary>
     /// Drives the run-cycle frames in Assets/Sprites/Run Cycles from the player's actual
-    /// physics velocity: four directional sets (down, up, sideways, down-diagonal), four
-    /// frames each, flipped horizontally when moving left. Standing still falls back to
-    /// the forward-facing idle frame.
+    /// physics velocity: four directional sets (down, up, sideways, diagonal), four
+    /// frames each, flipped horizontally when moving left. The diagonal set plays on
+    /// upward diagonals; downward diagonals reuse the sideways run. Standing still falls
+    /// back to the forward-facing idle frame.
     ///
     /// Two measures keep the animation from visibly "jumping":
     ///  - The direction is low-pass filtered and a set switch must persist for a moment;
@@ -150,9 +151,9 @@ namespace ADCREA.Player
                 return _runSide;
             }
 
-            // Mixed motion: dedicated diagonal art only exists facing downwards, so
-            // upward diagonals reuse the sideways run.
-            if (direction.y < 0f && _runDiagonal != null && _runDiagonal.Length > 0)
+            // Mixed motion: the dedicated diagonal art plays on UPWARD diagonals (W+A/D);
+            // downward diagonals (S+A/D) reuse the sideways run.
+            if (direction.y > 0f && _runDiagonal != null && _runDiagonal.Length > 0)
             {
                 return _runDiagonal;
             }
