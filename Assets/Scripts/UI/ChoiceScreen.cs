@@ -3,15 +3,7 @@ using ADCREA.Weapons;
 
 namespace ADCREA.UI
 {
-    /// <summary>
-    /// Slay-the-Spire style picker: a solid stone backdrop, a parchment title banner,
-    /// three bordered cards (name bar, framed art, description) and an optional teal
-    /// Skip pill underneath. Used for the starting weapon, every post-boss weapon offer
-    /// and the treasure-room upgrade.
-    ///
-    /// Callbacks are passed as method groups (delegates), never lambdas, to respect the
-    /// project's no-lambda constraint.
-    /// </summary>
+
     public class ChoiceScreen : MonoBehaviour
     {
         public delegate void WeaponPickedHandler(WeaponDefinition weapon);
@@ -38,8 +30,6 @@ namespace ADCREA.UI
             Upgrades,
         }
 
-        // Sized so three cards dominate the screen the way Spire's rewards do, with
-        // air between them; still fits three across a 1280-wide window.
         private const float CardWidth = 340f;
         private const float CardHeight = 470f;
         private const float CardGap = 56f;
@@ -50,7 +40,7 @@ namespace ADCREA.UI
         private UpgradeOption[] _upgradeOptions;
         private WeaponPickedHandler _onWeaponPicked;
         private UpgradePickedHandler _onUpgradePicked;
-        private string _skipLabel; // Null = the choice is mandatory, no skip button.
+        private string _skipLabel;
 
         private GUIStyle _bannerStyle;
         private GUIStyle _cardNameStyle;
@@ -76,10 +66,6 @@ namespace ADCREA.UI
             }
         }
 
-        /// <summary>
-        /// A non-null skipLabel adds a button under the cards; skipping reports null to
-        /// the handler, which callers read as "keep the current loadout".
-        /// </summary>
         public void ShowWeapons(WeaponDefinition[] options, string title,
             WeaponPickedHandler onPicked, string skipLabel)
         {
@@ -111,8 +97,6 @@ namespace ADCREA.UI
             UiTheme.DrawBackdrop();
             UiTheme.DrawBanner(Screen.height * 0.13f, _title, _bannerStyle);
 
-            // Card count follows the option array: a shrunken pool must never index
-            // past the end, it just shows fewer cards.
             int count;
             if (_mode == Mode.Weapons)
             {
@@ -145,16 +129,12 @@ namespace ADCREA.UI
                 var skipRect = new Rect(Screen.width * 0.5f - 110f, y + CardHeight + 26f, 220f, 50f);
                 if (GUI.Button(skipRect, _skipLabel, _skipButtonStyle))
                 {
-                    // Reported as a null pick: the caller keeps the current loadout.
+
                     PickWeapon(null);
                 }
             }
         }
 
-        /// <summary>
-        /// The card body is one big button (its hover state brightens the fill); the
-        /// border, name bar and content are drawn on top of it afterwards.
-        /// </summary>
         private bool DrawCardShell(Rect rect, string name)
         {
             var borderRect = new Rect(rect.x - 3f, rect.y - 3f, rect.width + 6f, rect.height + 6f);
@@ -173,7 +153,6 @@ namespace ADCREA.UI
         {
             bool clicked = DrawCardShell(rect, weapon.DisplayName);
 
-            // Framed art window, like the picture box on a Spire card.
             var frame = new Rect(rect.x + 26f, rect.y + 70f, rect.width - 52f, 150f);
             UiTheme.DrawPanel(frame, UiTheme.InnerFrame, UiTheme.PanelBorder, 2f);
             var previewRect = new Rect(frame.x + 10f, frame.y + 10f, frame.width - 20f, frame.height - 20f);
@@ -244,7 +223,6 @@ namespace ADCREA.UI
         {
             Sprite sprite = WeaponAimDisplay.LoadSprite(weapon.SpriteResource);
 
-            // Fit the weapon's unit rectangle into the preview area, preserving aspect.
             float aspect = weapon.SpriteSize.x / weapon.SpriteSize.y;
             float width = area.width;
             float height = width / aspect;
@@ -258,8 +236,7 @@ namespace ADCREA.UI
 
             if (sprite != null)
             {
-                // Sprites may live anywhere on their texture, so the draw uses the
-                // sprite's own normalized rect instead of the whole texture.
+
                 Texture2D texture = sprite.texture;
                 Rect tr = sprite.textureRect;
                 var uv = new Rect(tr.x / texture.width, tr.y / texture.height,
@@ -375,8 +352,6 @@ namespace ADCREA.UI
             _cardTextStyle.alignment = TextAnchor.UpperLeft;
             _cardTextStyle.normal.textColor = UiTheme.TextBody;
 
-            // The whole card is this button: solid fill normally, brighter on hover -
-            // the highlight sits under the border/name bar drawn afterwards.
             _cardButtonStyle = new GUIStyle();
             _cardButtonStyle.normal.background = UiTheme.Solid(UiTheme.Panel);
             _cardButtonStyle.hover.background = UiTheme.Solid(UiTheme.PanelHover);

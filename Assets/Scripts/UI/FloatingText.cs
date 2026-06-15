@@ -2,12 +2,7 @@ using UnityEngine;
 
 namespace ADCREA.UI
 {
-    /// <summary>
-    /// A short message that rises out of a world position and fades - the feedback for
-    /// rewards that previously happened invisibly (sacrifice altar rolls, treasure
-    /// upgrades, heals). World-space TextMesh so it needs no canvas and sits in the room
-    /// where the reward happened, not glued to the screen.
-    /// </summary>
+
     public class FloatingText : MonoBehaviour
     {
         private const float Lifetime = 1.3f;
@@ -53,7 +48,7 @@ namespace ADCREA.UI
             transform.position = _origin + new Vector3(0f, RiseDistance * progress, 0f);
 
             Color color = _text.color;
-            // Holds fully visible for the first half, then fades out.
+
             color.a = Mathf.Clamp01(_timer / (Lifetime * 0.5f));
             _text.color = color;
         }

@@ -6,25 +6,7 @@ using UnityEditor;
 
 namespace ADCREA.Player
 {
-    /// <summary>
-    /// Drives the run-cycle frames in Assets/Sprites/Run Cycles from the player's actual
-    /// physics velocity: four directional sets (down, up, sideways, diagonal), four
-    /// frames each, flipped horizontally when moving left. The diagonal set plays on
-    /// upward diagonals; downward diagonals reuse the sideways run. Standing still falls
-    /// back to the forward-facing idle frame.
-    ///
-    /// Two measures keep the animation from visibly "jumping":
-    ///  - The direction is low-pass filtered and a set switch must persist for a moment;
-    ///    raw rigidbody velocity jitters when sliding along walls, and unfiltered it
-    ///    flips between sets (and restarted the cycle) every few frames.
-    ///  - The frame index carries over across set switches instead of resetting, so a
-    ///    direction change continues the stride mid-step.
-    ///
-    /// Frames are pulled through the editor asset database so the art can stay in the
-    /// team's art folder instead of being forced into Resources. The demonstrator is
-    /// run and graded inside the editor; a standalone build would silently keep the
-    /// static sprite until the frames are moved under a Resources folder.
-    /// </summary>
+
     [RequireComponent(typeof(Rigidbody2D))]
     public class PlayerSpriteAnimator : MonoBehaviour
     {
@@ -32,7 +14,7 @@ namespace ADCREA.Player
         public float framesPerSecond = 9f;
 
         private const string RunCyclesRoot = "Assets/Sprites/Run Cycles/";
-        // A candidate set must win for this long before the visible set switches.
+
         private const float SetSwitchDelay = 0.08f;
 
         private Rigidbody2D _body;
@@ -74,21 +56,17 @@ namespace ADCREA.Player
                 return;
             }
 
-            // Physics velocity instead of raw input: the animation stops when a wall
-            // stops the player, and freezes with the simulation while menus are open.
             Vector2 velocity = _body.linearVelocity;
 
             if (velocity.magnitude < 0.5f)
             {
-                _sprite.sprite = _runDown[0]; // Forward-facing idle, Isaac style.
+                _sprite.sprite = _runDown[0];
                 _frameIndex = 0;
                 _frameTimer = 0f;
                 _pendingSet = null;
                 return;
             }
 
-            // Heavier smoothing than a single frame of velocity: wall contacts inject
-            // one-frame spikes that would otherwise flicker the chosen direction.
             _smoothedDirection = Vector2.Lerp(_smoothedDirection, velocity.normalized,
                 Mathf.Clamp01(12f * Time.deltaTime));
 
@@ -124,8 +102,7 @@ namespace ADCREA.Player
             _pendingTimer += Time.deltaTime;
             if (_pendingTimer >= SetSwitchDelay)
             {
-                // Deliberately no frame reset: the stride continues mid-step, which is
-                // what removes the visible hiccup on every direction change.
+
                 _currentSet = candidate;
                 _pendingSet = null;
             }
@@ -136,8 +113,6 @@ namespace ADCREA.Player
             float absX = Mathf.Abs(direction.x);
             float absY = Mathf.Abs(direction.y);
 
-            // A 1.5x dominance margin acts as a dead band: near-equal axes fall through
-            // to the diagonal/side cases instead of ping-ponging between up and side.
             if (absY > absX * 1.5f)
             {
                 if (direction.y > 0f)
@@ -151,8 +126,6 @@ namespace ADCREA.Player
                 return _runSide;
             }
 
-            // Mixed motion: the dedicated diagonal art plays on UPWARD diagonals (W+A/D);
-            // downward diagonals (S+A/D) reuse the sideways run.
             if (direction.y > 0f && _runDiagonal != null && _runDiagonal.Length > 0)
             {
                 return _runDiagonal;
@@ -162,9 +135,7 @@ namespace ADCREA.Player
 
         private void UpdateFlip(Vector2 direction)
         {
-            // The side and diagonal art faces right; moving left mirrors it. Up/down
-            // cycles are left untouched so the movement script's own flip cannot fight
-            // this one - both flip on the same horizontal sign.
+
             if (_currentSet != _runSide && _currentSet != _runDiagonal)
             {
                 return;
@@ -187,15 +158,13 @@ namespace ADCREA.Player
             for (int i = 0; i < guids.Length; i++)
             {
                 string path = AssetDatabase.GUIDToAssetPath(guids[i]);
-                // Only the hand-exported pngs are animation frames. The folders also
-                // hold .aseprite working files whose importer generates sprites of its
-                // own - mixing those in scrambled the cycle into random-looking jumps.
+
                 if (path.EndsWith(".png"))
                 {
                     paths.Add(path);
                 }
             }
-            // Frame order comes from the trailing 1..4 in the file names.
+
             paths.Sort();
 
             var frames = new List<Sprite>();

@@ -3,13 +3,7 @@ using UnityEngine;
 
 namespace ADCREA.Algorithms
 {
-    /// <summary>
-    /// Drop on an empty GameObject in the scene to see the algorithms work.
-    /// Builds a rectangular test room, runs A* from start->goal, and draws:
-    ///   - explored tiles (yellow gizmo cubes)
-    ///   - final path (red LineRenderer)
-    /// Satisfies the visualization requirement in §2.4.
-    /// </summary>
+
     [RequireComponent(typeof(LineRenderer))]
     public class PathfindingVisualizer : MonoBehaviour
     {
@@ -76,7 +70,6 @@ namespace ADCREA.Algorithms
         {
             if (_grid == null) return;
 
-            // Walls.
             Gizmos.color = new Color(0.2f, 0.2f, 0.2f, 0.6f);
             foreach (var kv in _grid.Tiles)
             {
@@ -86,7 +79,6 @@ namespace ADCREA.Algorithms
                 }
             }
 
-            // Explored tiles from the last A* run — shows the algorithm's behaviour, not just the result.
             if (_lastResult.Explored != null)
             {
                 Gizmos.color = new Color(1f, 0.9f, 0.2f, 0.35f);

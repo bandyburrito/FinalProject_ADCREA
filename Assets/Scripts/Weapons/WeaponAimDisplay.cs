@@ -4,23 +4,10 @@ using ADCREA.Dungeon;
 
 namespace ADCREA.Weapons
 {
-    /// <summary>
-    /// The weapon sprite floating around the player. Per spec: the sprite is a rectangle
-    /// whose LEFT edge stays at a fixed distance from the player (the origin of the aim
-    /// circle), rotated to point at the cursor. Flips vertically when aiming left so the
-    /// art is never upside down.
-    ///
-    /// Real sprites are loaded from Resources/Weapons at 16 pixels per unit; while the
-    /// art is missing the display falls back to a tinted rectangle of the correct size,
-    /// so weapon feel can be tuned before the sprites are imported.
-    /// </summary>
+
     public class WeaponAimDisplay : MonoBehaviour
     {
-        /// <summary>
-        /// Distance from the player's centre to the sprite's left edge. Tight to the
-        /// body so the grip reads as held, not hovering - melee enemies press right up
-        /// against the player, and a floaty weapon sat visually inside them.
-        /// </summary>
+
         public const float HoldDistance = 0.18f;
 
         private static readonly Dictionary<string, Sprite> SpriteCache = new Dictionary<string, Sprite>();
@@ -35,7 +22,7 @@ namespace ADCREA.Weapons
 
             WeaponAimDisplay display = displayObject.AddComponent<WeaponAimDisplay>();
             display._renderer = displayObject.AddComponent<SpriteRenderer>();
-            display._renderer.sortingOrder = 2; // Above the player sprite.
+            display._renderer.sortingOrder = 2;
             display._renderer.enabled = false;
             return display;
         }
@@ -56,15 +43,12 @@ namespace ADCREA.Weapons
             float angle = Mathf.Atan2(aimDirection.y, aimDirection.x) * Mathf.Rad2Deg;
             transform.localRotation = Quaternion.Euler(0f, 0f, angle);
 
-            // Left edge at HoldDistance means the centre sits half a sprite further out.
             float centerDistance = HoldDistance + definition.SpriteSize.x * 0.5f;
             transform.localPosition = (Vector3)(aimDirection * centerDistance);
 
-            // Aiming left would render the art upside down without a vertical flip.
             _renderer.flipY = aimDirection.x < 0f;
         }
 
-        /// <summary>Where shots leave the weapon: the rectangle's right edge.</summary>
         public Vector3 MuzzlePosition(Vector3 playerPosition, Vector2 aimDirection, WeaponDefinition definition)
         {
             float muzzleDistance = HoldDistance + definition.SpriteSize.x;
@@ -81,9 +65,6 @@ namespace ADCREA.Weapons
                 _renderer.sprite = sprite;
                 _renderer.color = Color.white;
 
-                // The hold distance and muzzle position are derived from SpriteSize, so
-                // the rendered art is normalized to exactly that size - an import at the
-                // wrong pixels-per-unit shrinks nothing and moves no muzzle.
                 Vector2 worldSize = sprite.bounds.size;
                 if (worldSize.x > 0.01f && worldSize.y > 0.01f)
                 {
@@ -99,8 +80,7 @@ namespace ADCREA.Weapons
             }
             else
             {
-                // Placeholder rectangle at the exact specced size keeps positioning and
-                // muzzle math correct until the pixel art lands in Resources/Weapons.
+
                 _renderer.sprite = RuntimeSprites.SolidSquare();
                 _renderer.color = definition.Tint;
                 transform.localScale = new Vector3(definition.SpriteSize.x, definition.SpriteSize.y, 1f);
@@ -121,7 +101,7 @@ namespace ADCREA.Weapons
             }
 
             Sprite loaded = Resources.Load<Sprite>(resourcePath);
-            // Null is cached too: one failed disk lookup per path, not one per frame.
+
             SpriteCache[resourcePath] = loaded;
             return loaded;
         }

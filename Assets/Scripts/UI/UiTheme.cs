@@ -3,15 +3,7 @@ using UnityEngine;
 
 namespace ADCREA.UI
 {
-    /// <summary>
-    /// Shared palette and drawing helpers for every OnGUI screen, styled after Slay the
-    /// Spire: solid dark stone backdrops, bordered panel cards with a name bar, a
-    /// parchment title banner and teal pill buttons. Centralized so the menu, the death
-    /// screen and the choice screens cannot drift apart visually.
-    ///
-    /// Solid-colour textures are generated once and cached - OnGUI runs several times
-    /// per frame and must never allocate a texture per call.
-    /// </summary>
+
     public static class UiTheme
     {
         public static readonly Color BackdropTop = new Color(0.17f, 0.16f, 0.20f);
@@ -40,8 +32,7 @@ namespace ADCREA.UI
             }
 
             var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            // Survives scene reloads: these are session-lifetime UI resources, not
-            // scene objects.
+
             texture.hideFlags = HideFlags.HideAndDontSave;
             Color[] pixels = { color, color, color, color };
             texture.SetPixels(pixels);
@@ -50,7 +41,6 @@ namespace ADCREA.UI
             return texture;
         }
 
-        /// <summary>Full-screen solid backdrop with a subtle vertical gradient.</summary>
         public static void DrawBackdrop()
         {
             if (_backdropGradient == null)
@@ -61,7 +51,7 @@ namespace ADCREA.UI
                 _backdropGradient.wrapMode = TextureWrapMode.Clamp;
                 for (int y = 0; y < steps; y++)
                 {
-                    // Texture row 0 is the bottom; darker at the bottom reads as depth.
+
                     _backdropGradient.SetPixel(0, y, Color.Lerp(BackdropBottom, BackdropTop, (float)y / (steps - 1)));
                 }
                 _backdropGradient.Apply();
@@ -77,7 +67,6 @@ namespace ADCREA.UI
             GUI.DrawTexture(inner, Solid(fill));
         }
 
-        /// <summary>The parchment title strip, centred horizontally.</summary>
         public static void DrawBanner(float centerY, string text, GUIStyle textStyle)
         {
             float width = Mathf.Min(680f, Screen.width * 0.8f);

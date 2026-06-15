@@ -1,5 +1,5 @@
 using UnityEngine;
-using System.Collections.Generic;   
+using System.Collections.Generic;
 using System;
 
 public class EnemyStatHolder : MonoBehaviour
@@ -10,7 +10,7 @@ public class EnemyStatHolder : MonoBehaviour
     public float movementSpeed;
     public float attackRange;
     public Sprite enemySprite;
-    
+
     public enum enemyType
     {
         Melee,
@@ -41,10 +41,5 @@ public class EnemyStatHolder : MonoBehaviour
             this.enemyAttackSpeed = attackSpeed;
         }
     }
-        
-
 
 }
-    
-
-

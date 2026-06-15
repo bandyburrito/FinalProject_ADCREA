@@ -5,15 +5,7 @@ using ADCREA.Dungeon;
 
 namespace ADCREA.Enemies
 {
-    /// <summary>
-    /// The melee boss's gimmick: every few seconds it calls in a small minion next to
-    /// itself, capped so the room cannot flood. Minions register with the room like any
-    /// enemy, so the doors stay sealed until boss AND brood are dead - and the spawner
-    /// dies with the boss, so the fight always ends.
-    ///
-    /// Actual minion construction is delegated back to the DungeonGenerator: there is
-    /// exactly one place in the project that knows how to build a working enemy.
-    /// </summary>
+
     public class BossMinionSpawner : MonoBehaviour
     {
         public float spawnInterval = 8f;
@@ -65,8 +57,7 @@ namespace ADCREA.Enemies
 
         private void TrySpawnMinion()
         {
-            // A few random tries around the boss; a failed tick just waits for the next
-            // interval instead of force-spawning into a wall.
+
             for (int attempt = 0; attempt < 8; attempt++)
             {
                 Vector2 offset = Random.insideUnitCircle.normalized * Random.Range(1.6f, 3f);

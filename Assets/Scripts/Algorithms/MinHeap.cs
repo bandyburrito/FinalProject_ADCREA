@@ -3,11 +3,7 @@ using System.Collections.Generic;
 
 namespace ADCREA.Algorithms
 {
-    /// <summary>
-    /// Binary min-heap used as the open set for A* and Dijkstra.
-    /// Implemented explicitly (rather than using SortedSet or .NET's PriorityQueue)
-    /// so the priority-queue data structure is visible in the project for grading.
-    /// </summary>
+
     public class MinHeap<T>
     {
         private readonly List<T> _items = new List<T>();

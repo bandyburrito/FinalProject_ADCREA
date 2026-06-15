@@ -4,12 +4,7 @@ using ADCREA.Player;
 
 namespace ADCREA.Enemies
 {
-    /// <summary>
-    /// The snail boss's brain: it never aims, never stops and never pathfinds - it just
-    /// races along diagonals and reflects off walls like a screensaver logo, dealing
-    /// contact damage to whoever fails to step aside. Each axis bounces independently
-    /// against the room's tile grid, which is what keeps the motion strictly diagonal.
-    /// </summary>
+
     public class DiagonalBouncer : MonoBehaviour
     {
         public float speed = 6f;
@@ -34,8 +29,6 @@ namespace ADCREA.Enemies
                 return;
             }
 
-            // Always a perfect diagonal; the bounce logic only ever flips signs, so the
-            // direction stays diagonal for the whole fight.
             float x = 1f;
             if (Random.value < 0.5f)
             {
@@ -99,8 +92,7 @@ namespace ADCREA.Enemies
             {
                 return;
             }
-            // Proximity check instead of collision events: the body moves by transform,
-            // and the player's invulnerability frames already rate-limit repeat hits.
+
             if (Vector2.Distance(transform.position, _player.position) <= contactRange)
             {
                 _playerHealth.TakeDamage(contactDamage);

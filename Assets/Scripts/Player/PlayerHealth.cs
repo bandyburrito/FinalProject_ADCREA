@@ -3,13 +3,7 @@ using ADCREA.Dungeon;
 
 namespace ADCREA.Player
 {
-    /// <summary>
-    /// Player hit points with a short invulnerability window after every hit, so two
-    /// overlapping enemies cannot drain the whole bar within a couple of frames.
-    /// Death performs a soft reset (back to the start room, full health) instead of a
-    /// scene reload - the generated dungeon stays intact, which keeps the demonstrator
-    /// robust and lets a presentation continue from the same seed without regenerating.
-    /// </summary>
+
     public class PlayerHealth : MonoBehaviour
     {
         public int maxHealth = 6;
@@ -18,8 +12,6 @@ namespace ADCREA.Player
         public int CurrentHealth { get; private set; }
         public int DeathCount { get; private set; }
 
-        // Temporary hearts (Safety): absorbed before real HP and never refilled by heals -
-        // once spent they are gone for the rest of the run.
         public int TempHealth { get; private set; }
 
         private float _invulnerableTimer;
@@ -38,23 +30,17 @@ namespace ADCREA.Player
 
         private void Awake()
         {
-            // The inspector value is the permanent baseline; Iron Heart upgrades raise
-            // maxHealth during a run and ResetForNewRun snaps back to this.
+
             _baseMaxHealth = maxHealth;
             CurrentHealth = maxHealth;
             _sprite = GetComponentInChildren<SpriteRenderer>();
         }
 
-        /// <summary>Run-scoped max-HP upgrade: the new heart arrives filled.</summary>
         public void IncreaseMaxHealth(int amount)
         {
             ChangeMaxHealth(amount);
         }
 
-        /// <summary>
-        /// Shifts max HP by any amount. Gained hearts arrive filled; lost hearts (Blood
-        /// Pact) clamp current HP down with them. Max HP never drops below 1.
-        /// </summary>
         public void ChangeMaxHealth(int delta)
         {
             if (delta == 0)
@@ -72,20 +58,17 @@ namespace ADCREA.Player
             }
         }
 
-        /// <summary>Glass Cannon: collapse the heart bar to a single point of HP.</summary>
         public void SetMaxHealthTo(int value)
         {
             maxHealth = Mathf.Max(1, value);
             CurrentHealth = Mathf.Min(CurrentHealth, maxHealth);
         }
 
-        /// <summary>Blessing: top the bar back up to full (temporary hearts are not refilled).</summary>
         public void HealToFull()
         {
             CurrentHealth = maxHealth;
         }
 
-        /// <summary>Safety: bonus hearts spent before real HP and never healed back.</summary>
         public void AddTempHealth(int amount)
         {
             if (amount <= 0)
@@ -112,8 +95,7 @@ namespace ADCREA.Player
             Color color = _sprite.color;
             if (_invulnerableTimer > 0f)
             {
-                // Fast alpha flicker is the classic "you are briefly untouchable" signal
-                // and needs no extra UI to communicate the invulnerability window.
+
                 color.a = 0.35f + 0.65f * Mathf.PingPong(Time.time * 8f, 1f);
             }
             else
@@ -123,11 +105,6 @@ namespace ADCREA.Player
             _sprite.color = color;
         }
 
-        /// <summary>
-        /// Returns whether the damage was actually applied. Callers like the sacrifice
-        /// altar need this distinction: a blocked hit (invulnerability frames) must not
-        /// pay out a reward.
-        /// </summary>
         public bool TakeDamage(int amount)
         {
             if (IsInvulnerable || amount <= 0)
@@ -135,7 +112,6 @@ namespace ADCREA.Player
                 return false;
             }
 
-            // Temporary hearts soak the blow first; only the overflow reaches real HP.
             int remaining = amount;
             if (TempHealth > 0)
             {
@@ -147,8 +123,6 @@ namespace ADCREA.Player
             _invulnerableTimer = invulnerabilitySeconds;
             Debug.Log("Player took " + amount + " damage, " + CurrentHealth + " HP left.");
 
-            // Lets the run flow notice "boss beaten without taking damage" for the better
-            // Tier 1 odds; the session decides whether the hit counts toward a boss fight.
             if (GameSession.Instance != null)
             {
                 GameSession.Instance.NotifyPlayerDamaged();
@@ -175,8 +149,6 @@ namespace ADCREA.Player
             DeathCount = DeathCount + 1;
             RestoreSpriteAlpha();
 
-            // The session owns what death means (run over, items lost, new floor).
-            // The respawn fallback only exists for test scenes without a GameSession.
             if (GameSession.Instance != null)
             {
                 GameSession.Instance.HandlePlayerDeath();
@@ -202,7 +174,7 @@ namespace ADCREA.Player
 
         private void RestoreSpriteAlpha()
         {
-            // The invulnerability flicker may have left the sprite half transparent.
+
             if (_sprite == null)
             {
                 return;

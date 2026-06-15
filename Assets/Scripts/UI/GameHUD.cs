@@ -8,14 +8,7 @@ using ADCREA.Weapons;
 
 namespace ADCREA.UI
 {
-    /// <summary>
-    /// Minimal immediate-mode HUD (OnGUI) - no Canvas or prefab setup required, which
-    /// keeps the demonstrator runnable from a fresh checkout. Player-facing only:
-    /// hearts, the floor number, the weapon LinkedList with ammo counts and reload bar,
-    /// and Isaac-style boss health bars along the bottom while a boss room is active
-    /// (stacked when the floor spawns twin bosses). Everything renders in JetBrains
-    /// Mono via FontLibrary.
-    /// </summary>
+
     public class GameHUD : MonoBehaviour
     {
         private PlayerHealth _health;
@@ -63,8 +56,7 @@ namespace ADCREA.UI
 
         private void OnGUI()
         {
-            // Menus and choice screens draw their own UI; the gameplay HUD would only
-            // add noise on top of them.
+
             if (!GameSession.IsPlaying)
             {
                 return;
@@ -87,9 +79,6 @@ namespace ADCREA.UI
 
             GUI.Label(new Rect(12f, 14f, 60f, 30f), "HP", _headerStyle);
 
-            // Squares instead of font hearts: GUI.DrawTexture cannot miss a glyph,
-            // so the bar renders identically on every machine. Sized up so health is
-            // readable at a glance mid-fight.
             const float size = 32f;
             const float gap = 7f;
             for (int i = 0; i < _health.maxHealth; i++)
@@ -106,8 +95,6 @@ namespace ADCREA.UI
                 GUI.DrawTexture(slot, Texture2D.whiteTexture);
             }
 
-            // Temporary hearts (Safety) sit past the real bar in cyan: a buffer that is
-            // spent before HP and never heals back.
             for (int i = 0; i < _health.TempHealth; i++)
             {
                 var slot = new Rect(56f + (_health.maxHealth + i) * (size + gap), 12f, size, size);
@@ -140,8 +127,6 @@ namespace ADCREA.UI
 
             float y = 56f;
 
-            // Walk the LinkedList node by node - the HUD literally renders the data
-            // structure, cursor included, which doubles as its visualization.
             LinkedListNode<WeaponInstance> node = _inventory.FirstNode;
             while (node != null)
             {
@@ -191,11 +176,6 @@ namespace ADCREA.UI
             GUI.color = Color.white;
         }
 
-        /// <summary>
-        /// Isaac-style boss bars along the bottom: one per living boss in the room the
-        /// player currently stands in, stacked for twin-boss floors, with the boss's
-        /// own (tinted) sprite as the icon on the left.
-        /// </summary>
         private void DrawBossBars()
         {
             if (RoomManager.Instance == null || RoomManager.Instance.ActiveRoom == null)
@@ -212,7 +192,7 @@ namespace ADCREA.UI
                 {
                     continue;
                 }
-                // Bars only show during the actual fight, not from across the floor.
+
                 if (boss.Room.Grid != RoomManager.Instance.ActiveRoom)
                 {
                     continue;
@@ -239,8 +219,6 @@ namespace ADCREA.UI
             GUI.DrawTexture(fill, Texture2D.whiteTexture);
             GUI.color = Color.white;
 
-            // The boss's own sprite (tint included) marks whose bar this is - exactly
-            // the skull plate on Isaac's bars, without needing extra icon art.
             var iconFrame = new Rect(x - 46f, y - 5f, 40f, 40f);
             UiTheme.DrawPanel(iconFrame, new Color(0.07f, 0.06f, 0.08f), new Color(0.35f, 0.32f, 0.38f), 2f);
             if (boss.Icon != null && boss.Icon.sprite != null)

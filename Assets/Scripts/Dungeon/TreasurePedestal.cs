@@ -3,11 +3,7 @@ using ADCREA.UI;
 
 namespace ADCREA.Dungeon
 {
-    /// <summary>
-    /// The treasure room's pedestal. Stepping on it opens the three-card upgrade choice
-    /// (heal / damage / crit) through the GameSession, which owns the pause logic. The
-    /// pedestal is consumed when a card is picked - one treasure per treasure room.
-    /// </summary>
+
     public class TreasurePedestal : MonoBehaviour
     {
         public static TreasurePedestal Create(Transform parent, Vector3 worldPosition)
@@ -36,7 +32,7 @@ namespace ADCREA.Dungeon
         {
             var hintObject = new GameObject("Hint");
             hintObject.transform.SetParent(parent, false);
-            // Counter-scale so the text keeps its size regardless of the pedestal's scale.
+
             hintObject.transform.localScale = new Vector3(1f / 1.6f, 1f / 1.6f, 1f);
             hintObject.transform.localPosition = new Vector3(0f, 0.9f, 0f);
 

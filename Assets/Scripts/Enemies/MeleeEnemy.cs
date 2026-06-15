@@ -5,12 +5,7 @@ using ADCREA.Player;
 
 namespace ADCREA.Enemies
 {
-    /// <summary>
-    /// Basic melee enemy. Each repath tick it asks A* for the shortest walkable path
-    /// to the player and follows it cell by cell. Repath rate is throttled because
-    /// A* on a 16x10 grid is cheap but still wasteful at 60fps for an enemy whose
-    /// target only moves a fraction of a tile per frame.
-    /// </summary>
+
     public class MeleeEnemy : MonoBehaviour
     {
         [Header("Target")]
@@ -19,13 +14,13 @@ namespace ADCREA.Enemies
 
         [Header("Movement")]
         public float moveSpeed = 3f;
-        public float arriveRadius = 0.05f;     // How close to the centre of a waypoint counts as "arrived".
+        public float arriveRadius = 0.05f;
 
         [Header("AI")]
-        public float repathInterval = 0.25f;   // Seconds between A* recomputes.
-        public float attackRange = 1.1f;       // World units. Stops moving + triggers attack inside this distance.
+        public float repathInterval = 0.25f;
+        public float attackRange = 1.1f;
         public int contactDamage = 1;
-        public float attackCooldown = 0.9f;    // Seconds between hits while staying in range.
+        public float attackCooldown = 0.9f;
 
         [Header("Debug")]
         public bool drawPathGizmo = true;
@@ -59,8 +54,6 @@ namespace ADCREA.Enemies
         {
             if (target == null) return;
 
-            // Only the room the player is currently in runs its AI - and only after the
-            // short entry grace, so walking through a door is never an instant hit.
             if (!RoomManager.IsEngaged(_room)) return;
 
             float distToTarget = Vector2.Distance(transform.position, target.position);
@@ -86,7 +79,6 @@ namespace ADCREA.Enemies
             var startCell = _room.WorldToCell(transform.position);
             var goalCell = _room.WorldToCell(target.position);
 
-            // If we're standing on a wall cell (e.g. just spawned), bail out cleanly rather than crash.
             if (!_room.Grid.IsWalkable(startCell) || !_room.Grid.IsWalkable(goalCell))
             {
                 if (logPathfindingFailures)
@@ -105,7 +97,7 @@ namespace ADCREA.Enemies
             }
 
             _currentPath = result.Path;
-            // Skip the first node — it's the cell we're already in, so heading to it does nothing useful.
+
             if (_currentPath.Count > 1)
             {
                 _pathIndex = 1;
@@ -124,8 +116,6 @@ namespace ADCREA.Enemies
                 return;
             }
 
-            // Looked up lazily because the health component may be added to the player
-            // after this enemy's Start has already cached its target.
             if (_targetHealth == null)
             {
                 _targetHealth = target.GetComponent<PlayerHealth>();

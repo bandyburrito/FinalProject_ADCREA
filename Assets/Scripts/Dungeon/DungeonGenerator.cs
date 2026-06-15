@@ -8,25 +8,7 @@ using ADCREA.Weapons;
 
 namespace ADCREA.Dungeon
 {
-    /// <summary>
-    /// Procedural Isaac-style floor generator - the project's data story in one pipeline:
-    ///
-    ///   1. GROW    - a Queue-driven growth pass places rooms on a macro grid. A candidate
-    ///                touching two or more placed rooms is rejected, which forces the floor
-    ///                plan to stay a tree, and a tree always provides the dead ends that
-    ///                special rooms need.
-    ///   2. RANK    - Dijkstra runs over the room graph with enemy-weighted edges
-    ///                (entering a room costs 1 + its planned enemy count). A room's
-    ///                distance is therefore the least danger required to reach it.
-    ///   3. CROWN   - the most dangerous dead end becomes the Boss room, the least
-    ///                dangerous dead end the Treasure room, another the Sacrifice room.
-    ///   4. BUILD   - rooms are instantiated as separate physical islands, doors are wired
-    ///                in pairs, and enemies spawn on tiles validated with BFS (room
-    ///                integrity) and tile-level Dijkstra (fair distance from each entrance).
-    ///
-    /// Every random decision flows from one seed so a generation can be replayed
-    /// identically during the presentation.
-    /// </summary>
+
     public class DungeonGenerator : MonoBehaviour
     {
         [Header("Layout")]
@@ -122,14 +104,9 @@ namespace ADCREA.Dungeon
             Generate();
         }
 
-        /// <summary>
-        /// Creates the managers the dungeon depends on if the scene does not provide them.
-        /// Auto-wiring keeps the demonstrator runnable from a bare scene; a hand-placed
-        /// component always wins over the automatic one.
-        /// </summary>
         private void EnsureSupportComponents()
         {
-            // RoomManager must exist first: RoomCamera subscribes to it the moment it is added.
+
             if (FindAnyObjectByType<RoomManager>() == null)
             {
                 gameObject.AddComponent<RoomManager>();
@@ -153,27 +130,17 @@ namespace ADCREA.Dungeon
                 gameObject.AddComponent<GameHUD>();
             }
 
-            // The session freezes the game behind the main menu from frame one and owns
-            // the death / victory / new-run flow.
             if (FindAnyObjectByType<GameSession>() == null)
             {
                 gameObject.AddComponent<GameSession>();
             }
 
-            // The three-card picker used for starting weapons, the post-boss weapon
-            // and treasure upgrades.
             if (FindAnyObjectByType<ChoiceScreen>() == null)
             {
                 gameObject.AddComponent<ChoiceScreen>();
             }
         }
 
-        /// <summary>
-        /// Adopts the hand-placed room and enemy from the scene as spawn templates when no
-        /// prefab is assigned, so the dungeon works without any inspector wiring. Scene
-        /// templates are deactivated: the room's activateOnStart must not steal the camera,
-        /// and the loose enemy must not chase the player from outside the dungeon.
-        /// </summary>
         private void AbsorbSceneTemplates()
         {
             if (enemyTemplate == null)
@@ -182,8 +149,7 @@ namespace ADCREA.Dungeon
             }
             if (enemyTemplate != null && enemyTemplate.gameObject.scene.IsValid())
             {
-                // Detach before the room template is deactivated - the enemy may be sitting
-                // inside that room, and the template must stay usable on its own.
+
                 enemyTemplate.transform.SetParent(null);
                 enemyTemplate.gameObject.SetActive(false);
             }
@@ -197,9 +163,6 @@ namespace ADCREA.Dungeon
                 roomPrefab.gameObject.SetActive(false);
             }
 
-            // The standalone pathfinding demo draws its test room at the origin - exactly
-            // where the floor now spawns. Hidden during game runs; re-enable it manually
-            // when presenting the A* visualization on its own.
             PathfindingVisualizer pathfindingDemo = FindAnyObjectByType<PathfindingVisualizer>();
             if (pathfindingDemo != null)
             {
@@ -207,10 +170,6 @@ namespace ADCREA.Dungeon
             }
         }
 
-        /// <summary>
-        /// Tears the current floor down and builds a fresh one. Used by GameSession when a
-        /// run ends - a dead player never continues in the dungeon that killed them.
-        /// </summary>
         public void Regenerate()
         {
             for (int i = 0; i < _spawnedRoomObjects.Count; i++)
@@ -263,8 +222,6 @@ namespace ADCREA.Dungeon
                 + ", sacrifice at " + _sacrificeCell + ".");
         }
 
-        // ------------------------------------------------------------------ 1. GROW
-
         private void BuildLayout()
         {
             HashSet<Vector2Int> bestCells = null;
@@ -272,13 +229,11 @@ namespace ADCREA.Dungeon
 
             for (int attempt = 0; attempt < maxGenerationAttempts; attempt++)
             {
-                // A prime stride keeps attempt streams distinct but still reproducible
-                // from the single dungeon seed.
+
                 var attemptRng = new System.Random(ActualSeed + attempt * 7919);
                 HashSet<Vector2Int> cells = GrowFloorPlan(attemptRng);
                 List<Vector2Int> deadEnds = FindDeadEnds(cells);
 
-                // Three dead ends are required so Boss, Treasure and Sacrifice each get one.
                 if (cells.Count >= targetRoomCount && deadEnds.Count >= 3)
                 {
                     _layoutCells = cells;
@@ -294,8 +249,6 @@ namespace ADCREA.Dungeon
                 }
             }
 
-            // Growth can stall when every frontier room rolls against expansion; rather
-            // than fail the demo, settle for the best attempt and say so.
             _layoutCells = bestCells;
             _deadEnds = FindDeadEnds(bestCells);
             Debug.LogWarning("DungeonGenerator: no attempt reached " + targetRoomCount
@@ -328,8 +281,6 @@ namespace ADCREA.Dungeon
                         continue;
                     }
 
-                    // Rejecting candidates that would touch two placed rooms keeps the plan
-                    // a tree: no loops, and every branch ends in a usable dead end.
                     if (CountPlacedNeighbours(cells, candidate) >= 2)
                     {
                         continue;
@@ -353,8 +304,6 @@ namespace ADCREA.Dungeon
             var directions = new Vector2Int[CardinalDirections.Length];
             CardinalDirections.CopyTo(directions, 0);
 
-            // Fisher-Yates: without shuffling, growth would always try north/east first
-            // and every floor would lean into the same diagonal.
             for (int i = directions.Length - 1; i > 0; i--)
             {
                 int j = rng.Next(i + 1);
@@ -395,8 +344,6 @@ namespace ADCREA.Dungeon
             return deadEnds;
         }
 
-        // ------------------------------------------------------------------ 2. RANK
-
         private void PlanEnemies()
         {
             _plannedEnemies = new Dictionary<Vector2Int, int>();
@@ -404,9 +351,7 @@ namespace ADCREA.Dungeon
             {
                 if (cell == Vector2Int.zero || _deadEnds.Contains(cell))
                 {
-                    // Dead ends are cost-neutral while ranking: special rooms should be
-                    // chosen by the danger of the ROUTE towards them, not by enemies that
-                    // would be deleted again the moment the room turns special.
+
                     _plannedEnemies[cell] = 0;
                 }
                 else
@@ -421,22 +366,19 @@ namespace ADCREA.Dungeon
             var entryCost = new Dictionary<Vector2Int, float>();
             foreach (Vector2Int cell in _layoutCells)
             {
-                // 1 base step + one unit per enemy: this weighting is what turns the
-                // search from BFS into a genuine Dijkstra problem.
+
                 entryCost[cell] = 1f + _plannedEnemies[cell];
             }
 
             _danger = DungeonGraphDijkstra.ComputeFrom(entryCost, Vector2Int.zero);
         }
 
-        // ------------------------------------------------------------------ 3. CROWN
-
         private void ChooseSpecialRooms()
         {
             List<Vector2Int> candidates = _deadEnds;
             if (candidates.Count == 0)
             {
-                // Degenerate fallback (tiny corridor floors): rank every non-start room.
+
                 candidates = new List<Vector2Int>();
                 foreach (Vector2Int cell in _layoutCells)
                 {
@@ -453,8 +395,6 @@ namespace ADCREA.Dungeon
 
             DeadEndCount = _deadEnds.Count;
 
-            // Dead ends that did not become special rooms fight like normal rooms after
-            // all - give them their enemy budget back.
             foreach (Vector2Int cell in _deadEnds)
             {
                 if (cell != _bossCell && cell != _treasureCell && cell != _sacrificeCell)
@@ -520,8 +460,7 @@ namespace ADCREA.Dungeon
 
             if (remaining.Count == 0)
             {
-                // Fewer than three dead ends survived the fallback layout: put the
-                // sacrifice room into any normal room rather than dropping the feature.
+
                 foreach (Vector2Int cell in _layoutCells)
                 {
                     if (cell != Vector2Int.zero && cell != excludeA && cell != excludeB)
@@ -536,8 +475,6 @@ namespace ADCREA.Dungeon
             }
             return remaining[_rng.Next(remaining.Count)];
         }
-
-        // ------------------------------------------------------------------ 4. BUILD
 
         private RoomType TypeForCell(Vector2Int cell)
         {
@@ -573,16 +510,12 @@ namespace ADCREA.Dungeon
 
                 RoomGrid grid = Instantiate(roomPrefab, position, Quaternion.identity);
 
-                // The template room may still contain hand-placed test enemies; clones must
-                // start empty because population is the generator's job.
                 MeleeEnemy[] leftovers = grid.GetComponentsInChildren<MeleeEnemy>(true);
                 for (int i = 0; i < leftovers.Length; i++)
                 {
                     Destroy(leftovers[i].gameObject);
                 }
 
-                // Spawned rooms must not claim the camera on Start - only the start room
-                // becomes active, explicitly, after generation finishes.
                 grid.activateOnStart = false;
                 if (!grid.gameObject.activeSelf)
                 {
@@ -618,7 +551,7 @@ namespace ADCREA.Dungeon
                     DungeonRoom neighbour;
                     if (_roomsByCell.TryGetValue(entry.Key + direction, out neighbour))
                     {
-                        // Each side creates its own door, so the pair is wired both ways.
+
                         Door.Create(entry.Value, direction, neighbour);
                     }
                 }
@@ -646,8 +579,6 @@ namespace ADCREA.Dungeon
                         break;
                 }
 
-                // Rooms that spawned enemies start with sealed (dark) doors; empty rooms
-                // start open. From here on the rooms manage their own locks on each kill.
                 room.RefreshDoorLocks();
             }
         }
@@ -667,9 +598,6 @@ namespace ADCREA.Dungeon
             TileGrid tiles = room.Grid.Grid;
             Vector2Int centerCell = room.Grid.WorldToCell(room.WorldCenter());
 
-            // BFS integrity check: if parts of the floor are unreachable from the centre,
-            // the room art's colliders have accidentally split the room - better to learn
-            // that from a warning now than from enemies stuck in a pocket later.
             HashSet<Vector2Int> reachable = BFSReachability.Reachable(tiles, centerCell);
             List<Vector2Int> walkable = CollectWalkableCells(tiles);
             if (reachable.Count < walkable.Count)
@@ -678,9 +606,6 @@ namespace ADCREA.Dungeon
                     + " floor tiles are unreachable from the centre - check the wall colliders.", room);
             }
 
-            // One tile-level Dijkstra field per door: a spawn must keep a minimum PATH
-            // distance (not line-of-sight distance) from every entrance, so the player is
-            // never greeted by an enemy standing on the arrival tile.
             var entryFields = new List<Dictionary<Vector2Int, float>>();
             foreach (KeyValuePair<Vector2Int, Door> doorEntry in room.Doors)
             {
@@ -716,8 +641,7 @@ namespace ADCREA.Dungeon
 
             for (int i = 0; i < chosen.Count; i++)
             {
-                // Mixing chasers and gunners in one room forces the player to both
-                // dodge bullets and manage distance - pure melee rooms played flat.
+
                 bool ranged = _rng.NextDouble() < rangedEnemyChance;
                 SpawnGrunt(room, chosen[i], ranged);
             }
@@ -754,8 +678,7 @@ namespace ADCREA.Dungeon
                 float distance;
                 if (!entryFields[i].TryGetValue(cell, out distance))
                 {
-                    // Not in the field means unreachable from that entrance - rejecting it
-                    // doubles as a per-spawn reachability guarantee.
+
                     return false;
                 }
                 if (distance < minSpawnDistanceFromDoors)
@@ -779,8 +702,6 @@ namespace ADCREA.Dungeon
             return false;
         }
 
-        // ---------------------------------------------------------------- enemy builds
-
         private int CurrentFloor()
         {
             if (GameSession.Instance != null)
@@ -790,15 +711,11 @@ namespace ADCREA.Dungeon
             return 1;
         }
 
-        // Endless mode: deeper floors grow tougher and faster, so a run always ends
-        // eventually - the death screen reports how deep the player got.
         private float FloorHealthScale()
         {
             return (1f + healthScalePerFloor * (CurrentFloor() - 1)) * RoomsClearedHealthScale();
         }
 
-        // Every enemy is 3% tankier for each room cleared this run. Read at spawn time, so
-        // a floor's enemies bake in the count standing when it generated.
         private float RoomsClearedHealthScale()
         {
             int roomsCleared = 0;
@@ -814,11 +731,6 @@ namespace ADCREA.Dungeon
             return Mathf.Min(1f + speedScalePerFloor * (CurrentFloor() - 1), maxSpeedScale);
         }
 
-        /// <summary>
-        /// Clones the template and guarantees the parts every enemy needs: a solid
-        /// collider (player attacks find enemies through physics queries) and a health
-        /// component. The melee brain from the template stays on; ranged builds swap it.
-        /// </summary>
         private MeleeEnemy CreateEnemyShell(DungeonRoom room, Vector3 worldPosition)
         {
             MeleeEnemy enemy = Instantiate(enemyTemplate, worldPosition, Quaternion.identity, room.transform);
@@ -835,8 +747,6 @@ namespace ADCREA.Dungeon
             return enemy;
         }
 
-        // The room counts its living enemies to drive the door locks; the enemy reports
-        // its own death back through this link.
         private void FinalizeEnemy(DungeonRoom room, GameObject enemyObject)
         {
             EnemyHealth health = enemyObject.GetComponent<EnemyHealth>();
@@ -863,15 +773,13 @@ namespace ADCREA.Dungeon
             MeleeEnemy shell = CreateEnemyShell(room, room.Grid.CellToWorld(cell));
 
             EnemyHealth health = shell.GetComponent<EnemyHealth>();
-            // 3 to 5 HP base: the weakest gun needs a few hits, the sniper still
-            // one-shots the weakest enemies but not the toughest.
+
             health.SetMaxHealth(_rng.Next(3, 6) * FloorHealthScale());
 
             if (ranged)
             {
                 shell.gameObject.name = "Ranged Enemy " + cell.x + "," + cell.y;
-                // The melee chase brain makes way for the gunner brain; health,
-                // collider and sprite on the clone are shared by both builds.
+
                 Destroy(shell);
                 RangedEnemy gunner = shell.gameObject.AddComponent<RangedEnemy>();
                 gunner.moveSpeed = enemyMoveSpeed * 0.85f * FloorSpeedScale();
@@ -888,10 +796,10 @@ namespace ADCREA.Dungeon
 
         private enum BossArchetype
         {
-            Bruiser,   // Melee chaser that keeps summoning minions.
-            Spitter,   // Ranged, fires three-bullet fans from a distance.
-            Slime,     // Melee chaser that bursts into ten slimelets on death.
-            Snail,     // Races along diagonals forever, bouncing off walls.
+            Bruiser,
+            Spitter,
+            Slime,
+            Snail,
         }
 
         private void SpawnBosses(DungeonRoom room)
@@ -905,8 +813,7 @@ namespace ADCREA.Dungeon
 
             if (CurrentFloor() <= 1)
             {
-                // Floor one draws a single random boss; the Spitter is excluded so the
-                // first fight never demands bullet-dodging with the starter weapon.
+
                 var openers = new List<BossArchetype>
                 {
                     BossArchetype.Bruiser,
@@ -918,9 +825,7 @@ namespace ADCREA.Dungeon
             }
             else
             {
-                // Twin bosses from floor 2, Isaac double-fight style: two distinct
-                // archetypes at 75% of the solo health pool each - harder than one
-                // boss, fairer than two full ones.
+
                 var roster = new List<BossArchetype>
                 {
                     BossArchetype.Bruiser,
@@ -980,19 +885,16 @@ namespace ADCREA.Dungeon
             MeleeEnemy shell = CreateEnemyShell(room, room.Grid.CellToWorld(cell));
             shell.gameObject.name = "Floor Boss (Bruiser)";
             shell.transform.localScale = shell.transform.localScale * 1.8f;
-            // Slower but harder-hitting than the rank and file: readable as "the boss"
-            // even though it reuses the same A* chase brain.
+
             shell.moveSpeed = bossMoveSpeed * FloorSpeedScale();
             shell.contactDamage = 2;
             shell.attackRange = 1.6f;
 
             EnemyHealth health = shell.GetComponent<EnemyHealth>();
-            // Sized against the arsenal's 5-10 damage per second, so a boss survives
-            // a few seconds of sustained fire instead of one volley.
+
             health.SetMaxHealth(35f * FloorHealthScale() * healthFactor);
             TintEnemy(shell.gameObject, new Color(0.95f, 0.3f, 0.3f));
 
-            // The bruiser's gimmick: it keeps calling small minions into the fight.
             BossMinionSpawner spawner = shell.gameObject.AddComponent<BossMinionSpawner>();
             spawner.Initialize(this, room);
 
@@ -1006,8 +908,6 @@ namespace ADCREA.Dungeon
             shell.gameObject.name = "Floor Boss (Spitter)";
             shell.transform.localScale = shell.transform.localScale * 1.8f;
 
-            // Component swap as in SpawnGrunt: the spitter keeps its distance and
-            // fires three-bullet fans instead of chasing into melee.
             Destroy(shell);
             RangedEnemy gunner = shell.gameObject.AddComponent<RangedEnemy>();
             gunner.moveSpeed = 2.3f * FloorSpeedScale();
@@ -1034,8 +934,7 @@ namespace ADCREA.Dungeon
             shell.attackRange = 1.5f;
 
             EnemyHealth health = shell.GetComponent<EnemyHealth>();
-            // A lighter pool than the bruiser: killing it starts phase two, the
-            // ten-slimelet burst, so the fight is paid for in waves rather than HP.
+
             health.SetMaxHealth(28f * FloorHealthScale() * healthFactor);
             TintEnemy(shell.gameObject, new Color(0.35f, 0.85f, 0.4f));
 
@@ -1053,8 +952,6 @@ namespace ADCREA.Dungeon
             shell.gameObject.name = "Floor Boss (Snail)";
             shell.transform.localScale = shell.transform.localScale * 1.5f;
 
-            // Component swap as in SpawnGrunt: the snail neither chases nor aims, it
-            // just ricochets along diagonals at speed and punishes bad positioning.
             Destroy(shell);
             DiagonalBouncer bouncer = shell.gameObject.AddComponent<DiagonalBouncer>();
             bouncer.speed = 6f * FloorSpeedScale();
@@ -1068,10 +965,6 @@ namespace ADCREA.Dungeon
             FinalizeEnemy(room, shell.gameObject);
         }
 
-        /// <summary>
-        /// Called by SplitOnDeath when the slime boss dies. Slimelets are tiny, fast
-        /// and fragile - a cleanup wave, not ten extra bosses.
-        /// </summary>
         public EnemyHealth SpawnSlimelet(DungeonRoom room, Vector3 worldPosition)
         {
             if (enemyTemplate == null || room == null)
@@ -1102,10 +995,6 @@ namespace ADCREA.Dungeon
             tag.Icon = bossObject.GetComponentInChildren<SpriteRenderer>();
         }
 
-        /// <summary>
-        /// Called by BossMinionSpawner mid-fight. Minions are deliberately weak and
-        /// quick: they add pressure, not bullet-sponge padding.
-        /// </summary>
         public EnemyHealth SpawnBossMinion(DungeonRoom room, Vector3 worldPosition)
         {
             if (enemyTemplate == null || room == null)
@@ -1136,8 +1025,6 @@ namespace ADCREA.Dungeon
                 return;
             }
 
-            // The damage, inventory and combat systems live on the player but need zero
-            // scene setup: they are added here when missing so an untouched scene still runs.
             if (player.GetComponent<PlayerHealth>() == null)
             {
                 player.AddComponent<PlayerHealth>();
@@ -1172,11 +1059,6 @@ namespace ADCREA.Dungeon
             }
         }
 
-        /// <summary>
-        /// Stores the Dijkstra result for the Scene view: the cheapest route from start to
-        /// boss, found by walking the Previous chain backwards. Drawn as editor gizmos
-        /// only - it is a presentation and debugging tool, the player never sees it.
-        /// </summary>
         private void ComputeCriticalPath()
         {
             _criticalPathPoints.Clear();

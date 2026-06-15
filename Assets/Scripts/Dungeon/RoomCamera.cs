@@ -4,15 +4,7 @@ using ADCREA.Algorithms;
 
 namespace ADCREA.Dungeon
 {
-    /// <summary>
-    /// Keeps the camera locked onto whichever room is active, Isaac-style: one room
-    /// fills the screen, and entering a door slides the view over to the next room.
-    ///
-    /// Drives the scene's existing Cinemachine rig when one is present - instead of
-    /// following the player, the virtual camera follows an invisible anchor that this
-    /// script parks at the active room's centre, so Cinemachine's damping provides the
-    /// room-to-room glide for free. Without Cinemachine it hard-snaps the raw camera.
-    /// </summary>
+
     public class RoomCamera : MonoBehaviour
     {
         [Tooltip("Half the vertical world size shown. Sized so one room fills the screen, Isaac-style.")]
@@ -34,8 +26,7 @@ namespace ADCREA.Dungeon
 
         private void Start()
         {
-            // RoomManager might not have existed yet during OnEnable, so try again once
-            // every scene object has finished Awake.
+
             TrySubscribe();
         }
 
@@ -101,8 +92,6 @@ namespace ADCREA.Dungeon
             lens.OrthographicSize = orthographicSize;
             _virtualCamera.Lens = lens;
 
-            // The rotation composer is a 3D aiming behaviour; on a 2D orthographic camera
-            // it would tilt the view while the position damps towards a new room.
             CinemachineRotationComposer rotationComposer = _virtualCamera.GetComponent<CinemachineRotationComposer>();
             if (rotationComposer != null && rotationComposer.enabled)
             {
@@ -111,8 +100,7 @@ namespace ADCREA.Dungeon
 
             if (_firstFocus)
             {
-                // Without this the camera would glide all the way from the editor's old
-                // viewpoint to the generated dungeon on the very first frame.
+
                 Vector3 offset = new Vector3(0f, 0f, -10f);
                 CinemachineFollow follow = _virtualCamera.GetComponent<CinemachineFollow>();
                 if (follow != null)
@@ -136,8 +124,7 @@ namespace ADCREA.Dungeon
             }
             if (_sceneCamera != null)
             {
-                // Rooms are spaced-out islands; a near-black clear colour makes the gaps
-                // between them read as intentional void instead of a default blue screen.
+
                 _sceneCamera.clearFlags = CameraClearFlags.SolidColor;
                 _sceneCamera.backgroundColor = new Color(0.04f, 0.04f, 0.06f);
             }

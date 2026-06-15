@@ -4,12 +4,7 @@ using ADCREA.Enemies;
 
 namespace ADCREA.Weapons
 {
-    /// <summary>
-    /// Small square bullet. Uses a kinematic Rigidbody2D so trigger contacts fire against
-    /// the static wall and enemy colliders; the first solid thing it touches stops it -
-    /// enemies additionally take the shot's damage (crit multipliers already applied by
-    /// the weapon controller at fire time).
-    /// </summary>
+
     public class Projectile : MonoBehaviour
     {
         private float _damage;
@@ -28,8 +23,7 @@ namespace ADCREA.Weapons
             projectile._damage = damage;
             projectile._tint = tint;
             projectile._direction = direction;
-            // Rooms are walled in, so the wall normally ends a bullet's life; the timer
-            // is a backstop sized to outlive any possible flight across a room.
+
             projectile._lifeTimer = 30f / Mathf.Max(speed, 0.1f);
 
             var renderer = bulletObject.AddComponent<SpriteRenderer>();
@@ -60,7 +54,7 @@ namespace ADCREA.Weapons
 
         private void OnTriggerEnter2D(Collider2D other)
         {
-            // Doors, pickups and altar plates are triggers - bullets fly straight over them.
+
             if (other.isTrigger)
             {
                 return;
@@ -76,8 +70,6 @@ namespace ADCREA.Weapons
                 enemy.TakeDamage(_damage);
             }
 
-            // Walls and enemies both stop the shot; the impact sprays back the way
-            // the bullet came so hits read clearly even on fast shots.
             ParticleBurst.Spawn(transform.position, -_direction, _tint, 4, 3f);
             Destroy(gameObject);
         }

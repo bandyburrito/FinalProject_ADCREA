@@ -3,11 +3,7 @@ using UnityEngine;
 
 namespace ADCREA.Algorithms
 {
-    /// <summary>
-    /// Sparse 2D tile grid backed by a Dictionary keyed on integer cell coordinates.
-    /// Dictionary is chosen over a 2D array because the room shape is irregular and
-    /// we want O(1) lookup without allocating empty cells for non-room space.
-    /// </summary>
+
     public class TileGrid
     {
         public enum TileKind { Floor, Wall }
@@ -16,7 +12,7 @@ namespace ADCREA.Algorithms
         {
             public Vector2Int Cell;
             public TileKind Kind;
-            public float MovementCost; // Used by Dijkstra / A* for weighted tiles (e.g. mud, hazard).
+            public float MovementCost;
 
             public bool Walkable
             {
@@ -51,13 +47,8 @@ namespace ADCREA.Algorithms
             return _tiles.TryGetValue(cell, out var t) && t.Walkable;
         }
 
-        /// <summary>Whether diagonal (8-connected) moves are allowed. Set by RoomGrid at build time.</summary>
         public bool AllowDiagonal = true;
 
-        /// <summary>
-        /// When false, a diagonal move is only legal if both shared orthogonal cells are also
-        /// walkable — stops the path clipping a wall corner or squeezing a 1-tile diagonal gap.
-        /// </summary>
         public bool AllowCornerCutting = false;
 
         private static readonly Vector2Int[] Orthogonal =
@@ -91,7 +82,6 @@ namespace ADCREA.Algorithms
                 var d = Diagonal[i];
                 if (!IsWalkable(cell + d)) continue;
 
-                // No corner cutting: both orthogonal cells the diagonal shares must be open.
                 if (!AllowCornerCutting &&
                     (!IsWalkable(cell + new Vector2Int(d.x, 0)) || !IsWalkable(cell + new Vector2Int(0, d.y))))
                 {
@@ -102,7 +92,6 @@ namespace ADCREA.Algorithms
             }
         }
 
-        /// <summary>Quick rectangular room generator for prototyping a single fixed-layout room.</summary>
         public static TileGrid CreateRectangularRoom(int width, int height)
         {
             var grid = new TileGrid();

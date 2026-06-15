@@ -5,15 +5,7 @@ using ADCREA.Weapons;
 
 namespace ADCREA.Dungeon
 {
-    /// <summary>
-    /// The spike plate of the sacrifice room: standing on it costs 1 HP and pays out a
-    /// RANDOM weapon upgrade (damage or crit on the current weapon), echoing Isaac's
-    /// blood-for-reward rooms. The treasure room lets you choose; the altar gambles.
-    ///
-    /// Payment is gated by the player's invulnerability frames - TakeDamage reports
-    /// whether the hit landed, so a flickering (invulnerable) player is never charged
-    /// and never rewarded. Staying on the plate pays again as soon as the window ends.
-    /// </summary>
+
     public class SacrificeAltar : MonoBehaviour
     {
         private System.Random _lootRng;
@@ -26,8 +18,7 @@ namespace ADCREA.Dungeon
             altarObject.transform.localScale = new Vector3(2.2f, 2.2f, 1f);
 
             SacrificeAltar altar = altarObject.AddComponent<SacrificeAltar>();
-            // Seeded from the dungeon so the sequence of altar rewards is reproducible
-            // for a given seed, which keeps demo runs repeatable.
+
             altar._lootRng = new System.Random(dungeonSeed * 31 + 7);
 
             var renderer = altarObject.AddComponent<SpriteRenderer>();
@@ -87,8 +78,6 @@ namespace ADCREA.Dungeon
                 return;
             }
 
-            // The altar collected its due but the offering was fatal: a corpse gets
-            // no blessing - granting one would heal a player mid-death-screen.
             if (health.CurrentHealth <= 0)
             {
                 return;

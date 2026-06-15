@@ -4,12 +4,7 @@ using ADCREA.Player;
 
 namespace ADCREA.Enemies
 {
-    /// <summary>
-    /// A square bullet fired AT the player by ranged enemies - the mirror of the
-    /// player's Projectile. Passes straight through other enemies (no friendly fire,
-    /// and gunners behind the front line stay dangerous), stops on walls and on the
-    /// player, who takes the hit through the normal invulnerability-frame rules.
-    /// </summary>
+
     public class EnemyProjectile : MonoBehaviour
     {
         private int _damage;
@@ -26,7 +21,7 @@ namespace ADCREA.Enemies
             EnemyProjectile projectile = bulletObject.AddComponent<EnemyProjectile>();
             projectile._damage = damage;
             projectile._direction = direction;
-            // Icy blue: reads as "enemy shot" against the player's weapon-tinted bullets.
+
             projectile._tint = new Color(0.45f, 0.7f, 1f);
             projectile._lifeTimer = 30f / Mathf.Max(speed, 0.1f);
 
@@ -74,7 +69,6 @@ namespace ADCREA.Enemies
                 return;
             }
 
-            // Other enemies never block the shot - gunners can fire over the melee line.
             if (other.GetComponentInParent<EnemyHealth>() != null)
             {
                 return;

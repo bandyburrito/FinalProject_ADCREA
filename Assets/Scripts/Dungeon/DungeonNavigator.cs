@@ -4,14 +4,7 @@ using ADCREA.Algorithms;
 
 namespace ADCREA.Dungeon
 {
-    /// <summary>
-    /// Moves the player between rooms and remembers the route on a Stack of rooms.
-    ///
-    /// A Stack is the natural container for backtracking: rooms must be revisited in
-    /// exactly the reverse order they were entered (last in, first out). Pressing
-    /// Backspace pops the most recent room and teleports the player back into it -
-    /// no index arithmetic, no searching, just push on travel and pop on retrace.
-    /// </summary>
+
     public class DungeonNavigator : MonoBehaviour
     {
         public static DungeonNavigator Instance { get; private set; }
@@ -80,8 +73,6 @@ namespace ADCREA.Dungeon
                 return;
             }
 
-            // Remember where we came from BEFORE moving - the stack records the path
-            // travelled, not the rooms arrived in.
             _breadcrumbs.Push(door.Owner);
 
             Vector3 arrival = door.Destination.WorldCenter();
@@ -97,7 +88,7 @@ namespace ADCREA.Dungeon
 
         public void RetraceStep()
         {
-            // Backtracking must not be an escape hatch out of a locked fight.
+
             if (_currentRoom != null && !_currentRoom.IsCleared)
             {
                 Debug.Log("Cannot backtrack - the room is sealed until every enemy is dead.");
@@ -112,16 +103,10 @@ namespace ADCREA.Dungeon
 
             DungeonRoom previousRoom = _breadcrumbs.Pop();
 
-            // Arriving at the room centre instead of a specific door keeps retracing
-            // simple and safe: the centre is always walkable and never inside a trigger.
             MovePlayerTo(previousRoom.WorldCenter());
             Activate(previousRoom);
         }
 
-        /// <summary>
-        /// Soft reset used on player death: back to the start room and forget the trail,
-        /// because the trail describes a journey that ended.
-        /// </summary>
         public void RespawnAtStart()
         {
             if (_startRoom == null)
@@ -137,9 +122,7 @@ namespace ADCREA.Dungeon
         {
             if (_playerBody != null)
             {
-                // Teleporting through the rigidbody keeps the physics state consistent;
-                // writing transform.position behind the physics engine's back can leave
-                // stale contacts with the wall the player was touching.
+
                 _playerBody.position = position;
                 _playerBody.linearVelocity = Vector2.zero;
             }

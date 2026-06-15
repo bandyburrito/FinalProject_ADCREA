@@ -3,12 +3,7 @@ using UnityEngine;
 
 namespace ADCREA.Algorithms
 {
-    /// <summary>
-    /// Dijkstra single-source shortest path on a weighted TileGrid.
-    /// Reserved for the boss-room "danger map" — every tile's distance from the boss
-    /// is precomputed once, so ranged enemies / cover AI can read it in O(1) per query
-    /// instead of running A* per enemy per frame.
-    /// </summary>
+
     public static class DijkstraPathfinder
     {
         public struct Result
@@ -35,7 +30,7 @@ namespace ADCREA.Algorithms
             while (open.Count > 0)
             {
                 var current = open.Pop();
-                if (!settled.Add(current)) continue; // Stale heap entry.
+                if (!settled.Add(current)) continue;
 
                 float currentDist = distance[current];
                 foreach (var neighbour in grid.WalkableNeighbours(current))

@@ -4,16 +4,7 @@ using ADCREA.Algorithms;
 
 namespace ADCREA.Enemies
 {
-    /// <summary>
-    /// The blue gunner: approaches with A* like the melee enemy, but stops once the
-    /// player is inside its preferred range and shoots square bullets instead - only
-    /// when a wall-free line of sight exists, so it never wastes volleys into a corner.
-    /// Bosses reuse this brain with a multi-bullet volley fan.
-    ///
-    /// Deliberately a sibling of MeleeEnemy rather than a subclass: the two behaviours
-    /// stay small, self-contained and easy to explain in the presentation, which beats
-    /// saving thirty lines through an inheritance hierarchy.
-    /// </summary>
+
     public class RangedEnemy : MonoBehaviour
     {
         [Header("Target")]
@@ -69,8 +60,6 @@ namespace ADCREA.Enemies
                 return;
             }
 
-            // Only the room the player is currently in runs its AI - and only after the
-            // short entry grace, so walking through a door is never an instant volley.
             if (!RoomManager.IsEngaged(_room))
             {
                 return;
@@ -90,8 +79,7 @@ namespace ADCREA.Enemies
             }
             else
             {
-                // In range: hold position. Standing gunners give the player a clear
-                // window to dodge the incoming volley.
+
                 _currentPath = null;
             }
 
@@ -132,12 +120,12 @@ namespace ADCREA.Enemies
                 {
                     return true;
                 }
-                // Own collider and fellow enemies do not block - bullets pass them too.
+
                 if (collider.GetComponentInParent<EnemyHealth>() != null)
                 {
                     continue;
                 }
-                // Anything else solid is a wall between gunner and player.
+
                 return false;
             }
             return true;
@@ -150,8 +138,6 @@ namespace ADCREA.Enemies
             float sin = Mathf.Sin(radians);
             return new Vector2(vector.x * cos - vector.y * sin, vector.x * sin + vector.y * cos);
         }
-
-        // -------------------------------------------------- A* chase (as in MeleeEnemy)
 
         private void Repath()
         {
@@ -172,7 +158,7 @@ namespace ADCREA.Enemies
             }
 
             _currentPath = result.Path;
-            // Skip the first node — it's the cell we're already in.
+
             if (_currentPath.Count > 1)
             {
                 _pathIndex = 1;

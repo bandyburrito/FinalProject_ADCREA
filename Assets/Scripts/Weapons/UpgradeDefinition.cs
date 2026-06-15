@@ -3,14 +3,10 @@ using UnityEngine;
 
 namespace ADCREA.Weapons
 {
-    /// <summary>
-    /// Every upgrade the run can hand out. The tier an upgrade belongs to is data on its
-    /// <see cref="UpgradeData"/> entry and is deliberately NOT shown to the player - only
-    /// the name and the effect text reach the choice cards.
-    /// </summary>
+
     public enum UpgradeKind
     {
-        // ---- Tier 3 (weakest, most common) ----
+
         DeadlyBullets,
         FastChambers,
         LuckyShots,
@@ -27,7 +23,6 @@ namespace ADCREA.Weapons
         Quickness,
         Precise,
 
-        // ---- Tier 2 ----
         DeadlierBullets,
         FasterChambers,
         LuckierShots,
@@ -44,7 +39,6 @@ namespace ADCREA.Weapons
         StandYourGround,
         JackOfAllTrades,
 
-        // ---- Tier 1 (strongest, rarest) ----
         DeadliestBullets,
         FastestChambers,
         LuckiestShots,
@@ -62,25 +56,23 @@ namespace ADCREA.Weapons
         Sevens,
     }
 
-    /// <summary>The stat one upgrade effect touches. Percentages are whole numbers (7 = 7%).</summary>
     public enum UpgradeStat
     {
-        Damage,          // % multiplier on weapon damage.
-        AttackSpeed,     // % multiplier on attacks per second.
-        CritChance,      // Flat % added to crit chance.
-        Accuracy,        // % more accurate (tightens the spread cone); negative loosens it.
-        ReloadTime,      // % multiplier on reload time (negative = faster).
-        BulletVelocity,  // % multiplier on projectile speed.
-        CritDamage,      // % added to the crit damage bonus.
-        MoveSpeed,       // % multiplier on the player's move speed.
-        HealHp,          // Restore N hearts.
-        HealFull,        // Restore to max HP (value ignored).
-        MaxHp,           // Change max HP by N (can be negative).
-        SetMaxHp,        // Set max HP to N outright (Glass Cannon).
-        TempHp,          // Add N temporary hearts (lost permanently when spent).
+        Damage,
+        AttackSpeed,
+        CritChance,
+        Accuracy,
+        ReloadTime,
+        BulletVelocity,
+        CritDamage,
+        MoveSpeed,
+        HealHp,
+        HealFull,
+        MaxHp,
+        SetMaxHp,
+        TempHp,
     }
 
-    /// <summary>One stat change inside an upgrade. Upgrades bundle several of these.</summary>
     public struct UpgradeEffect
     {
         public readonly UpgradeStat Stat;
@@ -93,29 +85,21 @@ namespace ADCREA.Weapons
         }
     }
 
-    /// <summary>Full definition of one upgrade: presentation, tier and the effects it applies.</summary>
     public class UpgradeData
     {
         public UpgradeKind Kind;
         public string Name;
         public string Description;
-        public int Tier;            // 1 = strongest/rarest, 3 = weakest/most common.
+        public int Tier;
         public Color Tint;
         public UpgradeEffect[] Effects;
 
-        // Heal cards only make sense, and only appear, when the player is below max HP.
         public bool HealOnlyIfNotFull;
 
-        // Luck! and 777 carry no plain stat effects - GameSession handles them specially.
         public bool IsLuck;
         public bool IsJackpot;
     }
 
-    /// <summary>
-    /// Display wrapper handed to <see cref="ADCREA.UI.ChoiceScreen"/>. Carries exactly what a
-    /// card shows - never the tier. Also the home of the tiered upgrade database and the
-    /// roll/offer helpers the run flow draws from.
-    /// </summary>
     public class UpgradeOption
     {
         public readonly UpgradeKind Kind;
@@ -131,11 +115,6 @@ namespace ADCREA.Weapons
             Tint = tint;
         }
 
-        // ------------------------------------------------------------------ database
-
-        // Palette reused by effect family so cards read at a glance without a per-card art
-        // pass. Declared BEFORE the database below: static fields initialize in textual
-        // order, and BuildDatabase reads these colours.
         private static readonly Color Dmg = new Color(0.95f, 0.6f, 0.25f);
         private static readonly Color Spd = new Color(0.95f, 0.85f, 0.4f);
         private static readonly Color Crit = new Color(0.45f, 0.85f, 0.4f);
@@ -160,7 +139,6 @@ namespace ADCREA.Weapons
         {
             var db = new Dictionary<UpgradeKind, UpgradeData>();
 
-            // ---------------------------------------------------------- Tier 3
             Add(db, UpgradeKind.DeadlyBullets, "Deadly Bullets", "+7% damage", 3, Dmg,
                 new[] { E(UpgradeStat.Damage, 7f) });
             Add(db, UpgradeKind.FastChambers, "Fast Chambers", "+7% attack speed", 3, Spd,
@@ -192,7 +170,6 @@ namespace ADCREA.Weapons
             Add(db, UpgradeKind.Precise, "Precise", "+5% crit chance, +5% accuracy", 3, Aim,
                 new[] { E(UpgradeStat.CritChance, 5f), E(UpgradeStat.Accuracy, 5f) });
 
-            // ---------------------------------------------------------- Tier 2
             Add(db, UpgradeKind.DeadlierBullets, "Deadlier Bullets", "+15% damage", 2, Dmg,
                 new[] { E(UpgradeStat.Damage, 15f) });
             Add(db, UpgradeKind.FasterChambers, "Faster Chambers", "+15% attack speed", 2, Spd,
@@ -230,7 +207,6 @@ namespace ADCREA.Weapons
                     E(UpgradeStat.CritDamage, 1f), E(UpgradeStat.MoveSpeed, 2f),
                 });
 
-            // ---------------------------------------------------------- Tier 1
             Add(db, UpgradeKind.DeadliestBullets, "Deadliest Bullets", "+30% damage", 1, Dmg,
                 new[] { E(UpgradeStat.Damage, 30f) });
             Add(db, UpgradeKind.FastestChambers, "Fastest Chambers", "+30% attack speed", 1, Spd,
@@ -286,7 +262,7 @@ namespace ADCREA.Weapons
 
         private static void AddLuck(Dictionary<UpgradeKind, UpgradeData> db)
         {
-            // Deliberately vague: the player is never told what Luck! actually does.
+
             Add(db, UpgradeKind.Luck, "Luck!", "Fortune favours the bold.", 2, Gold, new UpgradeEffect[0]);
             db[UpgradeKind.Luck].IsLuck = true;
         }
@@ -310,8 +286,6 @@ namespace ADCREA.Weapons
             }
             return list;
         }
-
-        // ------------------------------------------------------------------ queries
 
         public static UpgradeData Data(UpgradeKind kind)
         {
@@ -343,10 +317,6 @@ namespace ADCREA.Weapons
             return Tier3;
         }
 
-        /// <summary>
-        /// Three distinct cards from one tier. Heal cards drop out of the pool when the
-        /// player is already at full health, so a useless card never wastes a slot.
-        /// </summary>
         public static UpgradeOption[] OfferFromTier(int tier, System.Random rng, bool playerAtFullHealth)
         {
             var pool = new List<UpgradeKind>();
@@ -371,7 +341,6 @@ namespace ADCREA.Weapons
             return offer;
         }
 
-        /// <summary>One random applicable upgrade from a tier - used by 777 and the altar.</summary>
         public static UpgradeKind RandomFromTier(int tier, System.Random rng, bool playerAtFullHealth)
         {
             var pool = new List<UpgradeKind>();
@@ -387,10 +356,6 @@ namespace ADCREA.Weapons
             return pool[rng.Next(pool.Count)];
         }
 
-        /// <summary>
-        /// The sacrifice altar gambles a single reward. It rolls the treasure-style tier
-        /// odds (no Tier 3): 75% Tier 2, 25% Tier 1.
-        /// </summary>
         public static UpgradeKind RollAltar(System.Random rng)
         {
             int tier = rng.NextDouble() < 0.25 ? 1 : 2;

@@ -3,11 +3,7 @@ using ADCREA.Dungeon;
 
 namespace ADCREA.Weapons
 {
-    /// <summary>
-    /// The visual for a hitscan shot: a thin stretched square from muzzle to impact that
-    /// fades out in a tenth of a second. Hitscan damage is applied instantly by the
-    /// controller; this only shows WHERE the invisible ray went.
-    /// </summary>
+
     public class BulletTracer : MonoBehaviour
     {
         private const float Lifetime = 0.1f;

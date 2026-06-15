@@ -18,20 +18,6 @@ namespace ADCREA.Dungeon
         GameOver,
     }
 
-    /// <summary>
-    /// Owns the run flow, endless-roguelike style:
-    ///
-    ///   menu -> pick 1 of 3 weapons -> floor 1 -> beat the boss -> weapon choice
-    ///   (fills the second slot, or SWAPS the equipped weapon once both slots are
-    ///   full; a skip button keeps the current loadout) -> next, harder floor -> ...
-    ///
-    /// The run only ends in death: enemies scale with the floor number, and the death
-    /// screen reports how deep the run got. Death wipes everything - weapons, upgrades,
-    /// the floor itself - and the next run starts from the weapon choice again.
-    ///
-    /// Menus and choice screens freeze the simulation through Time.timeScale = 0, which
-    /// also lets the Scene view be inspected mid-run during presentations.
-    /// </summary>
     public class GameSession : MonoBehaviour
     {
         public static GameSession Instance { get; private set; }
@@ -41,24 +27,16 @@ namespace ADCREA.Dungeon
         public GameState State { get; private set; }
         public int FloorNumber { get; private set; }
 
-        // How many combat rooms (normal + boss) the player has cleared this run. Drives the
-        // "+3% enemy health per room" scaling the generator reads.
         public int RoomsCleared { get; private set; }
 
         private DungeonGenerator _generator;
         private TreasurePedestal _pendingPedestal;
         private readonly System.Random _choiceRng = new System.Random();
 
-        // Per-room upgrade lottery: starts at 5%, climbs 5% per cleared room that paid out
-        // nothing, snaps back to 5% the moment an upgrade is offered.
         private float _upgradeChance = 0.05f;
 
-        // Luck! (a hidden Tier 2 upgrade): doubles the per-room upgrade chance and removes
-        // Tier 3 from the offer pool for the rest of the run.
         private bool _luckActive;
 
-        // Set whenever the player is hit inside the boss room; a flawless kill keeps it
-        // false and unlocks the better Tier 1 odds on the boss reward.
         private bool _bossFightDamageTaken;
 
         private GUIStyle _titleStyle;
@@ -66,11 +44,6 @@ namespace ADCREA.Dungeon
         private GUIStyle _menuItemStyle;
         private GUIStyle _buttonStyle;
 
-        /// <summary>
-        /// Input scripts ask this before acting, so menus AND open choice screens block
-        /// shooting, weapon swapping and backtracking. Defaults to true when no session
-        /// exists - test scenes without the full game flow must keep working.
-        /// </summary>
         public static bool IsPlaying
         {
             get
@@ -96,8 +69,6 @@ namespace ADCREA.Dungeon
             }
             Instance = this;
 
-            // Frozen from the first frame: the freshly generated dungeon acts as the
-            // backdrop behind the main menu until the player starts the run.
             State = GameState.MainMenu;
             FloorNumber = 1;
             Time.timeScale = 0f;
@@ -108,19 +79,11 @@ namespace ADCREA.Dungeon
             if (Instance == this)
             {
                 Instance = null;
-                // timeScale survives leaving play mode in the editor; restoring it here
-                // prevents a mysteriously frozen next session.
+
                 Time.timeScale = 1f;
             }
         }
 
-        // ------------------------------------------------------------------ run flow
-
-        /// <summary>
-        /// The picker is normally added by the generator; creating it here on demand
-        /// means a missing component degrades to a log line instead of a soft-lock at
-        /// timeScale zero with no cards on screen.
-        /// </summary>
         private ChoiceScreen EnsureChoiceScreen()
         {
             if (ChoiceScreen.Instance == null)
@@ -134,7 +97,7 @@ namespace ADCREA.Dungeon
         {
             State = GameState.ChoosingWeapon;
             Time.timeScale = 0f;
-            // No skip on the opening pick - a run cannot start unarmed.
+
             EnsureChoiceScreen().ShowWeapons(RollThreeWeapons(false),
                 "Choose Your Weapon", OnStartingWeaponPicked, null);
         }
@@ -150,10 +113,6 @@ namespace ADCREA.Dungeon
             Time.timeScale = 1f;
         }
 
-        /// <summary>
-        /// Called by a normal room when its last enemy dies. Runs the per-room upgrade
-        /// lottery: the chance climbs each barren room and resets when it finally pays out.
-        /// </summary>
         public void HandleRoomCleared()
         {
             if (State != GameState.Playing || ChoiceScreen.IsOpen)
@@ -171,7 +130,7 @@ namespace ADCREA.Dungeon
 
             if (_choiceRng.NextDouble() < chance)
             {
-                // A payout resets the streak; a dry room raises the odds for the next one.
+
                 _upgradeChance = 0.05f;
                 ShowUpgradeChoice(false, false, "Spoils of Battle", OnRoomClearUpgradePicked);
             }
@@ -187,11 +146,6 @@ namespace ADCREA.Dungeon
             Time.timeScale = 1f;
         }
 
-        /// <summary>
-        /// Called by the boss room when its last enemy dies. A boss pays out BOTH a
-        /// guaranteed treasure-quality upgrade (shown first, with better Tier 1 odds on a
-        /// flawless kill) and then a weapon choice, before the floor advances.
-        /// </summary>
         public void HandleBossDefeated()
         {
             if (State != GameState.Playing)
@@ -201,7 +155,7 @@ namespace ADCREA.Dungeon
 
             RoomsCleared++;
             bool noDamage = !_bossFightDamageTaken;
-            // The next floor's boss fight must judge "no damage" on its own.
+
             _bossFightDamageTaken = false;
 
             State = GameState.ChoosingWeapon;
@@ -215,18 +169,11 @@ namespace ADCREA.Dungeon
             ShowPostBossWeaponChoice();
         }
 
-        /// <summary>
-        /// The second half of the boss reward: fill the free weapon slot, or swap the
-        /// equipped weapon once both slots are full - unless the player skips to keep their
-        /// upgraded loadout.
-        /// </summary>
         private void ShowPostBossWeaponChoice()
         {
             WeaponInventory inventory = FindAnyObjectByType<WeaponInventory>();
             bool slotsFull = inventory != null && inventory.Count >= WeaponInventory.MaxWeapons;
 
-            // The title carries the context; the skip pill itself stays a single word
-            // so it can never outgrow its button.
             string title = "Claim a Second Weapon";
             if (slotsFull)
             {
@@ -237,11 +184,6 @@ namespace ADCREA.Dungeon
                 OnPostBossWeaponPicked, "Skip");
         }
 
-        /// <summary>
-        /// Picks one tier for the offer (60/30/10 after an enemy room, no Tier 3 in
-        /// treasure rooms / boss rewards) and shows three cards from it. Heal cards are
-        /// filtered out when the player is already at full health.
-        /// </summary>
         private void ShowUpgradeChoice(bool treasureOrBoss, bool noDamageBoss,
             string title, ChoiceScreen.UpgradePickedHandler onPicked)
         {
@@ -258,13 +200,11 @@ namespace ADCREA.Dungeon
 
             if (treasureOrBoss)
             {
-                // Tier 3 never shows in treasure rooms or boss rewards. A flawless boss
-                // kill lifts the Tier 1 share from 25% to 50%.
+
                 double tier1 = noDamageBoss ? 0.50 : 0.25;
                 return roll < tier1 ? 1 : 2;
             }
 
-            // Enemy room. Luck! strips Tier 3, collapsing the split to the treasure odds.
             if (_luckActive)
             {
                 return roll < 0.25 ? 1 : 2;
@@ -281,7 +221,6 @@ namespace ADCREA.Dungeon
             return 3;
         }
 
-        /// <summary>Set whenever the player takes a hit while standing in the boss room.</summary>
         public void NotifyPlayerDamaged()
         {
             if (PlayerInBossRoom())
@@ -308,7 +247,7 @@ namespace ADCREA.Dungeon
 
         private void OnPostBossWeaponPicked(WeaponDefinition weapon)
         {
-            // Null means the skip button: the loadout stays exactly as it is.
+
             if (weapon != null)
             {
                 WeaponInventory inventory = FindAnyObjectByType<WeaponInventory>();
@@ -320,15 +259,12 @@ namespace ADCREA.Dungeon
                     }
                     else
                     {
-                        // Both slots taken: the equipped weapon is dropped, upgrades
-                        // and all, in exchange for the fresh pick.
+
                         inventory.ReplaceEquipped(weapon);
                     }
                 }
             }
 
-            // Health, weapons and upgrades all carry over - only the floor is new,
-            // and the generator scales its enemies from the new floor number.
             FloorNumber++;
             EnsureGenerator();
             if (_generator != null)
@@ -350,10 +286,6 @@ namespace ADCREA.Dungeon
             Time.timeScale = 0f;
         }
 
-        /// <summary>
-        /// The treasure pedestal asks the session to run its choice so all pause and
-        /// resume logic stays in one place. Returns false when another choice is busy.
-        /// </summary>
         public bool RequestTreasureChoice(TreasurePedestal pedestal)
         {
             if (State != GameState.Playing || ChoiceScreen.IsOpen)
@@ -362,7 +294,7 @@ namespace ADCREA.Dungeon
             }
 
             _pendingPedestal = pedestal;
-            // Treasure rooms roll the treasure odds (Tier 2/1 only, no Tier 3).
+
             ShowUpgradeChoice(true, false, "Choose an Upgrade", OnTreasureUpgradePicked);
             return true;
         }
@@ -379,11 +311,6 @@ namespace ADCREA.Dungeon
             Time.timeScale = 1f;
         }
 
-        /// <summary>
-        /// Applies one upgrade by its data-driven effect list. Shared with the sacrifice
-        /// altar (which rolls one at random) and announces itself as floating text over the
-        /// player - a hidden stat change used to be impossible to notice.
-        /// </summary>
         public void ApplyUpgrade(UpgradeKind kind)
         {
             UpgradeData data = UpgradeOption.Data(kind);
@@ -394,7 +321,7 @@ namespace ADCREA.Dungeon
 
             if (data.IsLuck)
             {
-                // No visible stats: it quietly bends the rest of the run's upgrade rolls.
+
                 _luckActive = true;
             }
             else if (data.IsJackpot)
@@ -409,12 +336,11 @@ namespace ADCREA.Dungeon
             SpawnUpgradePopup(data.Name, data.Tint);
         }
 
-        /// <summary>777: the effects of one random Tier 1 upgrade, applied twice.</summary>
         private void ApplyJackpot()
         {
             bool full = PlayerAtFullHealth();
             UpgradeKind pick = UpgradeOption.RandomFromTier(1, _choiceRng, full);
-            // 777 lives in Tier 1 too; never let it pick itself into a loop.
+
             int guard = 0;
             while (pick == UpgradeKind.Sevens && guard < 32)
             {
@@ -458,7 +384,7 @@ namespace ADCREA.Dungeon
                     if (stats != null) stats.ApplyCritChanceUpgrade(effect.Value / 100f);
                     break;
                 case UpgradeStat.Accuracy:
-                    // More accuracy means a tighter spread cone, so the sign flips.
+
                     if (stats != null) stats.ApplyInaccuracyPercentUpgrade(-effect.Value);
                     break;
                 case UpgradeStat.ReloadTime:
@@ -509,14 +435,10 @@ namespace ADCREA.Dungeon
             {
                 return null;
             }
-            // The player's run-wide upgrades: applied here, read by every weapon.
+
             return inventory.Stats;
         }
 
-        /// <summary>
-        /// Full roguelike reset: weapons and upgrades gone, health refilled, floor count
-        /// back to one, old dungeon destroyed and a new one generated.
-        /// </summary>
         private void ResetRun()
         {
             PlayerHealth health = FindAnyObjectByType<PlayerHealth>();
@@ -559,11 +481,6 @@ namespace ADCREA.Dungeon
             }
         }
 
-        /// <summary>
-        /// Three distinct weapons via a Fisher-Yates shuffle. With excludeOwned the pool
-        /// drops weapons already carried, so the second pick never offers a duplicate -
-        /// four remain, which still fills three cards.
-        /// </summary>
         private WeaponDefinition[] RollThreeWeapons(bool excludeOwned)
         {
             WeaponInventory inventory = FindAnyObjectByType<WeaponInventory>();
@@ -576,8 +493,7 @@ namespace ADCREA.Dungeon
                 {
                     continue;
                 }
-                // The assault rifle is a reward gated behind the second boss: it never
-                // appears in the starting pick or the first boss reward (both at floor < 2).
+
                 if (IsAssaultRifle(candidate) && FloorNumber < 2)
                 {
                     continue;
@@ -593,8 +509,6 @@ namespace ADCREA.Dungeon
                 pool[j] = swap;
             }
 
-            // With 5 weapons and at most 1 owned the pool always holds at least 3, but
-            // the cap keeps a future smaller arsenal from indexing past the end.
             int pickCount = Mathf.Min(3, pool.Count);
             var picks = new WeaponDefinition[pickCount];
             for (int i = 0; i < pickCount; i++)
@@ -609,8 +523,6 @@ namespace ADCREA.Dungeon
             return weapon != null && weapon.DisplayName == "Assault Rifle";
         }
 
-        // ------------------------------------------------------------------ screens
-
         private void OnGUI()
         {
             EnsureStyles();
@@ -620,8 +532,6 @@ namespace ADCREA.Dungeon
                 case GameState.MainMenu:
                     UiTheme.DrawBackdrop();
                     DrawTitle(gameTitle, UiTheme.Gold, 0.24f);
-                    DrawSubtitle("ADCREA demonstrator - procedural floors, Dijkstra boss placement", 0.24f);
-                    // Slay-the-Spire layout: the options live in a column on the left.
                     if (DrawMenuItem(0, "Start Run"))
                     {
                         BeginStartingWeaponChoice();
@@ -672,9 +582,6 @@ namespace ADCREA.Dungeon
             _subtitleStyle.alignment = TextAnchor.MiddleCenter;
             _subtitleStyle.normal.textColor = new Color(0.75f, 0.74f, 0.78f);
 
-            // Spire-style menu entries: plain text that lights up gold under the mouse.
-            // The hover state only renders when a background is assigned, so it gets a
-            // fully transparent one.
             _menuItemStyle = new GUIStyle();
             _menuItemStyle.font = font;
             _menuItemStyle.fontSize = 28;
@@ -703,7 +610,6 @@ namespace ADCREA.Dungeon
         {
             var rect = new Rect(0f, Screen.height * screenHeightFraction, Screen.width, 70f);
 
-            // A dark offset copy fakes the drop shadow that makes the Spire title pop.
             var shadowRect = new Rect(rect.x + 3f, rect.y + 4f, rect.width, rect.height);
             _titleStyle.normal.textColor = new Color(0f, 0f, 0f, 0.6f);
             GUI.Label(shadowRect, text, _titleStyle);
@@ -731,7 +637,6 @@ namespace ADCREA.Dungeon
             var rect = new Rect(Screen.width * 0.5f - 120f, y, 240f, 50f);
             return GUI.Button(rect, label, _buttonStyle);
         }
-
 
         private void QuitGame()
         {

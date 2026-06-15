@@ -3,20 +3,15 @@ using UnityEngine;
 
 namespace ADCREA.Algorithms
 {
-    /// <summary>
-    /// A* shortest-path on a TileGrid. Used by enemy AI to chase the player around walls.
-    /// Octile heuristic with √2-weighted diagonals — admissible on an 8-connected grid, so
-    /// the path is guaranteed optimal. (Degrades to Manhattan behaviour when the grid has
-    /// diagonals disabled, since no diagonal steps are ever generated.)
-    /// </summary>
+
     public static class AStarPathfinder
     {
         private const float Sqrt2 = 1.41421356f;
 
         public struct Result
         {
-            public List<Vector2Int> Path;          // Empty if no path was found.
-            public HashSet<Vector2Int> Explored;   // Closed set, kept for visualization/debug.
+            public List<Vector2Int> Path;
+            public HashSet<Vector2Int> Explored;
             public bool Found;
         }
 
@@ -47,7 +42,6 @@ namespace ADCREA.Algorithms
                     return result;
                 }
 
-                // A node may be popped more than once because we don't decrease-key; skip stale entries.
                 if (result.Explored.Contains(current)) continue;
                 result.Explored.Add(current);
 
@@ -76,9 +70,6 @@ namespace ADCREA.Algorithms
             return result;
         }
 
-        // Octile distance — admissible on an 8-connected grid with straight=1, diagonal=√2,
-        // as long as the minimum tile MovementCost is >= 1. Manhattan would over-estimate here
-        // and break A*'s optimality guarantee.
         private static float Heuristic(Vector2Int a, Vector2Int b)
         {
             int dx = Mathf.Abs(a.x - b.x);

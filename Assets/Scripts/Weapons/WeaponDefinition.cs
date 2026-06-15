@@ -3,10 +3,7 @@ using UnityEngine;
 
 namespace ADCREA.Weapons
 {
-    /// <summary>
-    /// How the trigger behaves: SemiAuto fires once per click, Automatic fires while the
-    /// button is held, Melee swings while held (no ammunition involved).
-    /// </summary>
+
     public enum FireMode
     {
         SemiAuto,
@@ -14,18 +11,6 @@ namespace ADCREA.Weapons
         Melee,
     }
 
-    /// <summary>
-    /// Immutable base stats of one weapon, Enter-the-Gungeon style. Plain data, no
-    /// MonoBehaviour: a weapon only touches the scene through the controller that fires
-    /// it and the floating sprite that displays it.
-    ///
-    /// Conventions:
-    ///  - AttackSpeed is attacks per second; 0 means uncapped (limited only by clicking).
-    ///  - InaccuracyDegrees is the full cone: 30 means up to 15 degrees off either side.
-    ///  - ProjectileVelocity 0 plus Hitscan means the shot connects instantly.
-    ///  - MagazineSize 0 means no ammunition at all (melee).
-    ///  - CritChance is a fraction (0.05 = 5%).
-    /// </summary>
     public class WeaponDefinition
     {
         public string DisplayName;
@@ -38,32 +23,25 @@ namespace ADCREA.Weapons
         public float ReloadTime;
         public float CritChance;
 
-        // Ranged specials.
         public bool Hitscan;
-        public int PierceCount;            // Enemies the shot passes THROUGH (sniper: 1, so it hits 2).
-        public int PelletsPerShot = 1;     // Shotgun fires several projectiles per trigger pull.
-        public int CritPelletsPerShot;     // Shotgun crits add pellets instead of damage.
-        public bool IncrementalReload;     // Shotgun loads shell by shell; firing interrupts the reload.
-        public bool BloomRecovery;         // Revolver: spread shrinks back to zero over BloomRecoverySeconds.
-        public float BloomRecoverySeconds = 1f; // Base recovery window; attack speed upgrades shorten it.
-        public bool DoubleCritOnLastShot;  // Revolver: the final round in the cylinder crits twice as often.
+        public int PierceCount;
+        public int PelletsPerShot = 1;
+        public int CritPelletsPerShot;
+        public bool IncrementalReload;
+        public bool BloomRecovery;
+        public float BloomRecoverySeconds = 1f;
+        public bool DoubleCritOnLastShot;
 
-        // Melee specials.
-        public float MeleeRange;           // Units of reach beyond the player's body.
-        public float MeleeArcDegrees;      // Swing arc centred on the aim direction.
-        public bool CritHitsFullCircle;    // Broadsword: crits ignore the arc and hit all around.
+        public float MeleeRange;
+        public float MeleeArcDegrees;
+        public bool CritHitsFullCircle;
 
-        // Presentation.
-        public string SpriteResource;      // Resources path; missing sprite falls back to a tinted rectangle.
-        public Vector2 SpriteSize;         // World units at 16 pixels per unit (16x16 art = 1x1).
+        public string SpriteResource;
+        public Vector2 SpriteSize;
         public Color Tint;
-        public string SpecialNote;         // One-line quirk description for the choice card.
+        public string SpecialNote;
     }
 
-    /// <summary>
-    /// The five-weapon arsenal. A List fits the job: built once, shown in order on choice
-    /// screens, sampled by index when rolling the three options.
-    /// </summary>
     public static class WeaponDatabase
     {
         private static readonly List<WeaponDefinition> Pool = BuildPool();
@@ -82,12 +60,11 @@ namespace ADCREA.Weapons
             revolver.Mode = FireMode.SemiAuto;
             revolver.Damage = 2f;
             revolver.MagazineSize = 6;
-            revolver.AttackSpeed = 0f;             // Uncapped: every click fires.
+            revolver.AttackSpeed = 0f;
             revolver.InaccuracyDegrees = 30f;
             revolver.BloomRecovery = true;
             revolver.BloomRecoverySeconds = 1f;
-            // Bullet speeds sit well above the player's 5 u/s move speed - shots the
-            // shooter can outrun read as broken, not as slow projectiles.
+
             revolver.ProjectileVelocity = 12f;
             revolver.ReloadTime = 1.4f;
             revolver.CritChance = 0.05f;
@@ -100,7 +77,7 @@ namespace ADCREA.Weapons
 
             var sniper = new WeaponDefinition();
             sniper.DisplayName = "Sniper";
-            sniper.Mode = FireMode.SemiAuto;       // Bolt action: one click per round.
+            sniper.Mode = FireMode.SemiAuto;
             sniper.Damage = 5f;
             sniper.MagazineSize = 5;
             sniper.AttackSpeed = 1.0f;
@@ -118,7 +95,7 @@ namespace ADCREA.Weapons
 
             var shotgun = new WeaponDefinition();
             shotgun.DisplayName = "Shotgun";
-            shotgun.Mode = FireMode.SemiAuto;      // Pump action: one click per shell.
+            shotgun.Mode = FireMode.SemiAuto;
             shotgun.Damage = 1f;
             shotgun.PelletsPerShot = 6;
             shotgun.CritPelletsPerShot = 12;
@@ -126,7 +103,7 @@ namespace ADCREA.Weapons
             shotgun.AttackSpeed = 1.2f;
             shotgun.InaccuracyDegrees = 30f;
             shotgun.ProjectileVelocity = 10f;
-            shotgun.ReloadTime = 0.2f;             // Per shell.
+            shotgun.ReloadTime = 0.2f;
             shotgun.IncrementalReload = true;
             shotgun.CritChance = 0.05f;
             shotgun.SpriteResource = "Weapons/Shotgun";
@@ -137,8 +114,7 @@ namespace ADCREA.Weapons
 
             var rifle = new WeaponDefinition();
             rifle.DisplayName = "Assault Rifle";
-            // True full auto: hold to empty the magazine. The price is a wide, sloppy
-            // spray - it shreds at close range but wastes rounds at distance.
+
             rifle.Mode = FireMode.Automatic;
             rifle.Damage = 1f;
             rifle.MagazineSize = 30;
@@ -157,9 +133,8 @@ namespace ADCREA.Weapons
             broadsword.DisplayName = "Broadsword";
             broadsword.Mode = FireMode.Melee;
             broadsword.Damage = 4f;
-            broadsword.MagazineSize = 0;           // Unlimited uses.
-            // One swing per second, one click per swing - holding the button used to
-            // turn the sword into a spammable blender.
+            broadsword.MagazineSize = 0;
+
             broadsword.AttackSpeed = 1f;
             broadsword.MeleeRange = 1f;
             broadsword.MeleeArcDegrees = 90f;

@@ -2,15 +2,7 @@ using UnityEngine;
 
 namespace ADCREA.Algorithms
 {
-    /// <summary>
-    /// Per-room walkable grid. Lives on a room prefab and is anchored to that instance's
-    /// world position, so each procedurally-placed room owns its own grid aligned to where
-    /// it was actually spawned. Walkability is read from physics: any cell overlapping a
-    /// collider on <see cref="wallMask"/> becomes a Wall.
-    ///
-    /// Pivot convention: this transform's position is the bottom-left corner of cell (0,0).
-    /// Place the room prefab's pivot at the bottom-left of its floor for the grid to line up.
-    /// </summary>
+
     public class RoomGrid : MonoBehaviour
     {
         [Header("Room footprint (cells)")]
@@ -38,7 +30,6 @@ namespace ADCREA.Algorithms
 
         public TileGrid Grid { get; private set; }
 
-        // Bottom-left corner of cell (0,0) in world space.
         private Vector2 Origin
         {
             get { return transform.position; }
@@ -51,21 +42,16 @@ namespace ADCREA.Algorithms
 
         private void Start()
         {
-            // Runs after all Awakes, so RoomManager.Instance is ready if one exists.
+
             if (activateOnStart && RoomManager.Instance != null)
                 RoomManager.Instance.SetActiveRoom(this);
         }
 
-        /// <summary>
-        /// (Re)builds the grid by probing each cell against the wall layer. Safe to call again
-        /// after the generator finishes stamping a room's walls.
-        /// </summary>
         public void Build()
         {
             if (wallMask == 0)
                 Debug.LogWarning($"{nameof(RoomGrid)} on '{name}' has no wallMask set — every cell will read as floor.", this);
 
-            // Newly instantiated wall colliders may not be in the physics broadphase yet.
             Physics2D.SyncTransforms();
 
             Grid = new TileGrid
@@ -110,7 +96,6 @@ namespace ADCREA.Algorithms
                 0f);
         }
 
-        // Draws the cell footprint in the editor so you can line the prefab up with its art.
         private void OnDrawGizmosSelected()
         {
             Gizmos.color = new Color(0.3f, 0.7f, 1f, 0.4f);

@@ -3,14 +3,7 @@ using ADCREA.Dungeon;
 
 namespace ADCREA.Enemies
 {
-    /// <summary>
-    /// Hit points for one enemy. A death reports back to the owning room, which is what
-    /// drives the Isaac room rule: doors stay sealed until the last enemy in the room
-    /// falls. The white hit-flash gives gun combat readable feedback without any UI.
-    ///
-    /// Health is a float because weapon upgrades stack multiplicatively and produce
-    /// fractional damage (2 base, +25% twice = 3.125 per hit).
-    /// </summary>
+
     public class EnemyHealth : MonoBehaviour
     {
         public float maxHealth = 4f;
@@ -30,7 +23,6 @@ namespace ADCREA.Enemies
             _sprite = GetComponentInChildren<SpriteRenderer>();
         }
 
-        /// <summary>Lets the generator hand out per-enemy health pools after spawning.</summary>
         public void SetMaxHealth(float value)
         {
             maxHealth = value;
@@ -64,8 +56,7 @@ namespace ADCREA.Enemies
 
             if (_sprite != null)
             {
-                // The base colour is captured on the first hit, not in Awake, because the
-                // generator tints bosses after this component already exists.
+
                 if (!_baseColorCaptured)
                 {
                     _baseColor = _sprite.color;
@@ -86,9 +77,6 @@ namespace ADCREA.Enemies
         {
             _dead = true;
 
-            // Death-split BEFORE the death report: the spawned slimelets must already
-            // be registered with the room, or it would briefly count as cleared and
-            // hand out the boss reward while ten new enemies are materializing.
             SplitOnDeath split = GetComponent<SplitOnDeath>();
             if (split != null)
             {

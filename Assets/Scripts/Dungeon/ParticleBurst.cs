@@ -3,15 +3,7 @@ using UnityEngine;
 
 namespace ADCREA.Dungeon
 {
-    /// <summary>
-    /// A short burst of tiny square shards - the game's particle effect for muzzle
-    /// flashes and bullet impacts. Hand-rolled instead of Unity's ParticleSystem so the
-    /// shards stay literal squares (the game's whole visual language) and a burst can
-    /// be spawned from one line of code with no prefab or module setup.
-    ///
-    /// One component animates all of its shards; only the burst root is allocated and
-    /// destroyed per shot, not one object per particle per frame.
-    /// </summary>
+
     public class ParticleBurst : MonoBehaviour
     {
         private const float Lifetime = 0.22f;
@@ -22,11 +14,6 @@ namespace ADCREA.Dungeon
         private float _timer;
         private float _baseScale;
 
-        /// <summary>
-        /// Sprays shards in a cone around the given direction (or all around when the
-        /// direction is zero). Visual only, so UnityEngine.Random is fine here - the
-        /// seeded dungeon randomness is reserved for generation decisions.
-        /// </summary>
         public static void Spawn(Vector3 position, Vector2 direction, Color color, int count, float speed)
         {
             var burstObject = new GameObject("ParticleBurst");
